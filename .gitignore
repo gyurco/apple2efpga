@@ -1,0 +1,6 @@
+PLLJ_PLLSPE_INFO.txt
+*.bak
+*.qws
+out/
+db/
+incremental_db/

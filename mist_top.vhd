@@ -98,6 +98,7 @@ architecture datapath of mist_top is
   component user_io 
     generic ( STRLEN : integer := 0 );
      port (
+            clk_sys, clk_sd : in std_logic;
             SPI_CLK, SPI_SS_IO, SPI_MOSI :in std_logic;
             SPI_MISO : out std_logic;
             conf_str : in std_logic_vector(8*STRLEN-1 downto 0);
@@ -114,30 +115,33 @@ architecture datapath of mist_top is
             sd_rd : in std_logic;
             sd_wr : in std_logic;
             sd_ack : out std_logic;
+            sd_ack_conf : out std_logic;
             sd_conf : in std_logic;
             sd_sdhc : in std_logic;
             sd_dout : out std_logic_vector(7 downto 0);
             sd_dout_strobe : out std_logic;
             sd_din : in std_logic_vector(7 downto 0);
             sd_din_strobe : out std_logic;
-            sd_change : out std_logic;
-            ps2_clk : in std_logic;
+            sd_buff_addr : out std_logic_vector(8 downto 0);
+            img_mounted : out std_logic;
             ps2_kbd_clk : out std_logic;
             ps2_kbd_data : out std_logic
         );
   end component user_io;
   
   component sd_card
-    port (io_lba : out std_logic_vector(31 downto 0);
-          io_rd : out std_logic;
-          io_wr : out std_logic;
-          io_ack : in std_logic;
-          io_sdhc : out std_logic;
-          io_conf : out std_logic;
-          io_din : in std_logic_vector(7 downto 0);
-          io_din_strobe : in std_logic;
-          io_dout : out std_logic_vector(7 downto 0);
-          io_dout_strobe : in std_logic;
+    port ( clk_sys : in std_logic;
+          sd_lba : out std_logic_vector(31 downto 0);
+          sd_rd : out std_logic;
+          sd_wr : out std_logic;
+          sd_ack : in std_logic;
+          sd_ack_conf : in std_logic;
+          sd_sdhc : out std_logic;
+          sd_conf : out std_logic;
+          sd_buff_dout : in std_logic_vector(7 downto 0);
+          sd_buff_wr : in std_logic;
+          sd_buff_din : out std_logic_vector(7 downto 0);
+          sd_buff_addr : in std_logic_vector(8 downto 0);
           allow_sdhc : in std_logic;
           sd_cs : in std_logic;
           sd_sck : in std_logic;
@@ -197,7 +201,7 @@ architecture datapath of mist_top is
     );
   end component;
 
-  signal CLK_28M, CLK_14M, CLK_2M, PRE_PHASE_ZERO, CLK_12k : std_logic;
+  signal CLK_28M, CLK_14M, CLK_2M, PRE_PHASE_ZERO : std_logic;
   signal clk_div : unsigned(1 downto 0);
   signal IO_SELECT, DEVICE_SELECT : std_logic_vector(7 downto 0);
   signal ADDR : unsigned(15 downto 0);
@@ -288,6 +292,7 @@ architecture datapath of mist_top is
   signal sd_rd:   std_logic;
   signal sd_wr:   std_logic;
   signal sd_ack:  std_logic;
+  signal sd_ack_conf:  std_logic;
   signal sd_conf: std_logic;
   signal sd_sdhc: std_logic;
   
@@ -296,6 +301,7 @@ architecture datapath of mist_top is
   signal sd_data_in_strobe:  std_logic;
   signal sd_data_out: std_logic_vector(7 downto 0);
   signal sd_data_out_strobe:  std_logic;
+  signal sd_buff_addr: std_logic_vector(8 downto 0);
   
   -- sd card emulation
   signal sd_cs:	std_logic;
@@ -338,7 +344,6 @@ begin
     inclk0 => CLOCK_27(0),
     c0     => CLK_28M,
     c1     => CLK_14M,
-    c2     => CLK_12k,
     locked => pll_locked
     );
 
@@ -519,7 +524,9 @@ begin
   user_io_d : user_io
     generic map (STRLEN => CONF_STR'length)
     
-    port map ( 
+    port map (
+      clk_sys => CLK_14M,
+	  clk_sd => CLK_14M,
       SPI_CLK => SPI_SCK,
       SPI_SS_IO => CONF_DATA0,    
       SPI_MISO => SPI_DO,    
@@ -532,21 +539,22 @@ begin
       joystick_analog_1 => joy_an1,
       SWITCHES => switches,
       BUTTONS => buttons,
-		scandoubler_disable => scandoubler_disable,
-		ypbpr => ypbpr,
+      scandoubler_disable => scandoubler_disable,
+      ypbpr => ypbpr,
       -- connection to io controller
       sd_lba  => sd_lba,
       sd_rd   => sd_rd,
       sd_wr   => sd_wr,
       sd_ack  => sd_ack,
+      sd_ack_conf => sd_ack_conf,
       sd_sdhc => sd_sdhc,
       sd_conf => sd_conf,
-      sd_dout => sd_data_in,
-      sd_dout_strobe => sd_data_in_strobe,
-      sd_din => sd_data_out,
-      sd_din_strobe => sd_data_out_strobe,
-      sd_change => sd_change, 
-      ps2_clk => CLK_12k,
+      sd_dout => sd_data_out,
+      sd_dout_strobe => sd_data_out_strobe,
+      sd_din => sd_data_in,
+      sd_din_strobe => sd_data_in_strobe,
+      sd_buff_addr => sd_buff_addr,
+      img_mounted => sd_change, 
       ps2_kbd_clk => ps2Clk,
       ps2_kbd_data => ps2Data
     );
@@ -554,17 +562,19 @@ begin
   sd_card_d: component sd_card
     port map
     (
+      clk_sys => CLK_14M,
       -- connection to io controller
-      io_lba => sd_lba,
-      io_rd  => sd_rd,
-      io_wr  => sd_wr,
-      io_ack => sd_ack,
-      io_conf => sd_conf,
-      io_sdhc => sd_sdhc,
-      io_din => sd_data_in,
-      io_din_strobe => sd_data_in_strobe,
-      io_dout => sd_data_out,
-      io_dout_strobe => sd_data_out_strobe,
+      sd_lba => sd_lba,
+      sd_rd  => sd_rd,
+      sd_wr  => sd_wr,
+      sd_ack => sd_ack,
+      sd_ack_conf => sd_ack_conf,
+      sd_conf => sd_conf,
+      sd_sdhc => sd_sdhc,
+      sd_buff_din => sd_data_in,
+      sd_buff_dout => sd_data_out,
+      sd_buff_wr => sd_data_out_strobe,
+      sd_buff_addr => sd_buff_addr,
    
       allow_sdhc  => '1',
       
