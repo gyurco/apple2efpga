@@ -127,7 +127,34 @@ architecture datapath of mist_top is
             ps2_kbd_data : out std_logic
         );
   end component user_io;
-  
+
+  component mist_sd_card
+    port (
+            sd_lba         : out std_logic_vector(31 downto 0);
+            sd_rd          : out std_logic;
+            sd_wr          : out std_logic;
+            sd_ack         : in  std_logic;
+
+            sd_buff_addr   : in  std_logic_vector(8 downto 0);
+            sd_buff_dout   : in  std_logic_vector(7 downto 0);
+            sd_buff_din    : out std_logic_vector(7 downto 0);
+            sd_buff_wr     : in  std_logic;
+
+            ram_addr       : out std_logic_vector(12 downto 0);
+            ram_di         : out std_logic_vector(7 downto 0);
+            ram_do         : in  std_logic_vector(7 downto 0);
+            ram_we         : out std_logic;
+
+            save_track     : in  std_logic;
+            change         : in  std_logic;                     -- Force reload as disk may have changed
+            track          : in  std_logic_vector(5 downto 0);  -- Track number (0-34)
+            busy           : out std_logic;
+
+            clk            : in  std_logic;     -- System clock
+            reset          : in  std_logic
+        );
+  end component mist_sd_card;
+
   component sd_card
     port ( clk_sys : in std_logic;
           sd_lba : out std_logic_vector(31 downto 0);
@@ -289,7 +316,7 @@ architecture datapath of mist_top is
   signal TRACK_RAM_WE : std_logic;
   signal track : unsigned(5 downto 0);
   signal image : unsigned(9 downto 0);
-  signal sd_change : std_logic;
+  signal disk_change : std_logic;
 
   signal CS_N, MOSI, MISO, SCLK : std_logic;
   
@@ -545,27 +572,33 @@ begin
     ram_we         => TRACK_RAM_WE
     );
 
-  sdcard_interface : entity work.spi_controller port map (
-    CLK_14M        => CLK_14M,
-    RESET          => RESET,
+  sdcard_interface: mist_sd_card port map (
+    clk       => CLK_14M,
+    reset     => reset,
 
-    CS_N           => sd_cs,
-    MOSI           => sd_sdi,
-    MISO           => sd_sdo,
-    SCLK           => sd_sck,
-    
-    change         => sd_change,
-    track          => TRACK,
-    image          => (others=>'0'),
-    busy           => LED,
-    
-    ram_write_addr => TRACK_RAM_ADDR,
-    ram_di         => TRACK_RAM_DI,
-    ram_we         => TRACK_RAM_WE
-    );
-    
+    unsigned(ram_addr) => TRACK_RAM_ADDR, -- out unsigned(13 downto 0);
+    unsigned(ram_di)   => TRACK_RAM_DI,   -- out unsigned(7 downto 0);
+    ram_do   => (others=>'0'),       -- in  unsigned(7 downto 0);
+    ram_we   => TRACK_RAM_WE,
+
+    track     => std_logic_vector(TRACK),
+    busy          => open,
+    save_track    => '0',
+    change        => disk_change,
+
+    sd_buff_addr => sd_buff_addr,
+    sd_buff_dout => sd_data_out,
+    sd_buff_din  => sd_data_in,
+    sd_buff_wr   => sd_data_out_strobe,
+
+    sd_lba  => sd_lba,
+    sd_rd   => sd_rd,
+    sd_wr   => sd_wr,
+    sd_ack  => sd_ack
+  );
+
   --LED <= not D1_ACTIVE;
-  
+
   user_io_d : user_io
     generic map (STRLEN => CONF_STR'length)
     
@@ -592,41 +625,15 @@ begin
       sd_wr   => sd_wr,
       sd_ack  => sd_ack,
       sd_ack_conf => sd_ack_conf,
-      sd_sdhc => sd_sdhc,
+      sd_sdhc => '1',
       sd_conf => sd_conf,
       sd_dout => sd_data_out,
       sd_dout_strobe => sd_data_out_strobe,
       sd_din => sd_data_in,
       sd_buff_addr => sd_buff_addr,
-      img_mounted => sd_change, 
+      img_mounted => disk_change,
       ps2_kbd_clk => ps2Clk,
       ps2_kbd_data => ps2Data
-    );
-    
-  sd_card_d: component sd_card
-    port map
-    (
-      clk_sys => CLK_14M,
-      -- connection to io controller
-      sd_lba => sd_lba,
-      sd_rd  => sd_rd,
-      sd_wr  => sd_wr,
-      sd_ack => sd_ack,
-      sd_ack_conf => sd_ack_conf,
-      sd_conf => sd_conf,
-      sd_sdhc => sd_sdhc,
-      sd_buff_din => sd_data_in,
-      sd_buff_dout => sd_data_out,
-      sd_buff_wr => sd_data_out_strobe,
-      sd_buff_addr => sd_buff_addr,
-   
-      allow_sdhc  => '1',
-      
-      -- connection to host
-      sd_cs  => sd_cs,
-      sd_sck => sd_sck,
-      sd_sdi => sd_sdi,
-      sd_sdo => sd_sdo		
     );
 
  scandoubler_inst: scandoubler
