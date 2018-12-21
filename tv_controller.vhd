@@ -2,7 +2,7 @@
 --
 -- 15 kHz TV output for Apple ][
 --
--- by Szombathelyi György
+-- by Szombathelyi GyÃ¶rgy
 -- based on vga_controller by
 -- Stephen A. Edwards, sedwards@cs.columbia.edu
 --
@@ -231,22 +231,22 @@ begin
           
           -- Tint of adjacent pixels is consistent : display the color
           
-          if shift_reg(1) = '1' then
+          if shift_reg(3) = '1' then
             r := r + basis_r(to_integer(hcount + 1));
             g := g + basis_g(to_integer(hcount + 1));
             b := b + basis_b(to_integer(hcount + 1));
           end if;
-          if shift_reg(2) = '1' then
+          if shift_reg(4) = '1' then
             r := r + basis_r(to_integer(hcount + 2));
             g := g + basis_g(to_integer(hcount + 2));
             b := b + basis_b(to_integer(hcount + 2));
           end if;
-          if shift_reg(3) = '1' then
+          if shift_reg(1) = '1' then
             r := r + basis_r(to_integer(hcount + 3));
             g := g + basis_g(to_integer(hcount + 3));
             b := b + basis_b(to_integer(hcount + 3));
           end if;
-          if shift_reg(4) = '1' then
+          if shift_reg(2) = '1' then
             r := r + basis_r(to_integer(hcount));
             g := g + basis_g(to_integer(hcount));
             b := b + basis_b(to_integer(hcount));
