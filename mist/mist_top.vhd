@@ -75,7 +75,15 @@ end mist_top;
 
 architecture datapath of mist_top is
 
-  constant CONF_STR : string := "AppleII+;;S,NIB;O2,Monitor Type,Color,Monochrome;O3,Monitor Mode,Main,Alt;OBC,Scanlines,Off,25%,50%,75%;O5,Joysticks,Normal,Swapped;O6,Mockingboard S4,off,on;T7,Cold reset;";
+  constant CONF_STR : string :=
+   "AppleII;;"&
+   "S,NIB;"&
+   "O2,Monitor Type,Color,Monochrome;"&
+   "O3,Monitor Mode,Main,Alt;"&
+   "OBC,Scanlines,Off,25%,50%,75%;"&
+   "O5,Joysticks,Normal,Swapped;"&
+   "O6,Mockingboard S4,off,on;"&
+   "T7,Cold reset;";
 
   function to_slv(s: string) return std_logic_vector is 
     constant ss: string(1 to s'length) := s; 
@@ -155,27 +163,6 @@ architecture datapath of mist_top is
         );
   end component mist_sd_card;
 
-  component sd_card
-    port ( clk_sys : in std_logic;
-          sd_lba : out std_logic_vector(31 downto 0);
-          sd_rd : out std_logic;
-          sd_wr : out std_logic;
-          sd_ack : in std_logic;
-          sd_ack_conf : in std_logic;
-          sd_sdhc : out std_logic;
-          sd_conf : out std_logic;
-          sd_buff_dout : in std_logic_vector(7 downto 0);
-          sd_buff_wr : in std_logic;
-          sd_buff_din : out std_logic_vector(7 downto 0);
-          sd_buff_addr : in std_logic_vector(8 downto 0);
-          allow_sdhc : in std_logic;
-          sd_cs : in std_logic;
-          sd_sck : in std_logic;
-          sd_sdi : in std_logic;
-          sd_sdo : out std_logic
-    );
-  end component sd_card;
-  
   component data_io is
     port ( sck: in std_logic;
            ss: in std_logic;
