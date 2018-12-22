@@ -86,7 +86,10 @@ architecture rtl of apple2 is
   signal D_IN : unsigned(7 downto 0);
   signal D_OUT: unsigned(7 downto 0);
   signal A : unsigned(15 downto 0);
+  signal T65_A : std_logic_vector(23 downto 0);
+  signal T65_DI : std_logic_vector(7 downto 0);
   signal we : std_logic;
+  signal we_n : std_logic;
 
   -- Main ROM signals
   signal rom_out : unsigned(7 downto 0);
@@ -293,25 +296,25 @@ begin
     VIDEO      => VIDEO,
     COLOR_LINE => COLOR_LINE);
 
-  cpu : entity work.cpu65xx
-    generic map (
-      pipelineOpcode => false,
-      pipelineAluMux => false,
-      pipelineAluOut => false)
+    we <= not we_n;
+    A <= unsigned(T65_A(15 downto 0));
+    T65_DI <= std_logic_vector(D_OUT) when we_n = '0' else std_logic_vector(D_IN);
+
+    cpu : entity work.T65
     port map (
-      clk            => Q3,
-      enable         => not PRE_PHASE_ZERO_sig,
-      reset          => reset,
-      nmi_n          => '1',
-      irq_n          => psg_irq_n,
-      di             => D_IN,
-      do             => D_OUT,
-      addr           => A,
-      we             => we,
-      debugPc     => pcDebugOut,
-      debugOpcode => opcodeDebugOut
+      mode     => "00",
+      clk      => Q3,
+      enable   => not PRE_PHASE_ZERO_sig,
+      res_n    => not reset,
+
+      IRQ_n    => psg_irq_n,
+      NMI_n    => '1',
+      R_W_n    => we_n,
+      A        => T65_A,
+      DI       => T65_DI,
+      unsigned(DO)       => D_OUT
     );
-    
+
   -- Original Apple had asynchronous ROMs.  We use a synchronous ROM
   -- that needs its address earlier, hence the odd clock.
   roms : entity work.roms port map (
