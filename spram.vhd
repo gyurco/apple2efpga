@@ -1,90 +1,47 @@
-LIBRARY ieee;
-USE ieee.std_logic_1164.all;
+-- Generic single-port RAM implementation -
+-- will hopefully work for both Altera and Xilinx parts
 
-LIBRARY altera_mf;
-USE altera_mf.all;
+library ieee;
+USE ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
 
 ENTITY spram IS
 	GENERIC
 	(
-		init_file			: string := "";
-		widthad_a			: natural;
-		width_a				: natural := 8;
-    outdata_reg_a : string := "UNREGISTERED"
+		addrbits : integer := 9;
+		databits : integer := 7;
+		init_file : string := ""
 	);
 	PORT
 	(
-		address		: IN STD_LOGIC_VECTOR (widthad_a-1 DOWNTO 0);
-		clock		: IN STD_LOGIC ;
-		data		: IN STD_LOGIC_VECTOR (width_a-1 DOWNTO 0);
-		wren		: IN STD_LOGIC ;
-		q		: OUT STD_LOGIC_VECTOR (width_a-1 DOWNTO 0)
+		address		: IN STD_LOGIC_VECTOR (addrbits-1 downto 0);
+		clock		: IN STD_LOGIC  := '1';
+		data		: IN STD_LOGIC_VECTOR (databits-1 downto 0);
+		wren		: IN STD_LOGIC  := '0';
+		q		: OUT STD_LOGIC_VECTOR (databits-1 downto 0)
 	);
 END spram;
 
+architecture arch of spram is
 
-ARCHITECTURE SYN OF spram IS
+type ram_type is array(natural range ((2**addrbits)-1) downto 0) of std_logic_vector(databits-1 downto 0);
+shared variable ram : ram_type;
+attribute ram_init_file : string;
+attribute ram_init_file of ram : variable is init_file;
+begin
 
-	SIGNAL sub_wire0	: STD_LOGIC_VECTOR (width_a-1 DOWNTO 0);
-
-
-
-	COMPONENT altsyncram
-	GENERIC (
-		clock_enable_input_a		: STRING;
-		clock_enable_output_a		: STRING;
-		init_file		: STRING;
-		intended_device_family		: STRING;
-		lpm_hint		: STRING;
-		lpm_type		: STRING;
-		numwords_a		: NATURAL;
-		operation_mode		: STRING;
-		outdata_aclr_a		: STRING;
-		outdata_reg_a		: STRING;
-		power_up_uninitialized		: STRING;
-		read_during_write_mode_port_a		: STRING;
-		widthad_a		: NATURAL;
-		width_a		: NATURAL;
-		width_byteena_a		: NATURAL
-	);
-	PORT (
-			wren_a	: IN STD_LOGIC ;
-			clock0	: IN STD_LOGIC ;
-			address_a	: IN STD_LOGIC_VECTOR (widthad_a-1 DOWNTO 0);
-			q_a	: OUT STD_LOGIC_VECTOR (width_a-1 DOWNTO 0);
-			data_a	: IN STD_LOGIC_VECTOR (width_a-1 DOWNTO 0)
-	);
-	END COMPONENT;
-
-BEGIN
-	q    <= sub_wire0(width_a-1 DOWNTO 0);
-
-	altsyncram_component : altsyncram
-	GENERIC MAP (
-		clock_enable_input_a => "BYPASS",
-		clock_enable_output_a => "BYPASS",
-		init_file => init_file,
-		intended_device_family => "Cyclone III",
-		lpm_hint => "ENABLE_RUNTIME_MOD=NO",
-		lpm_type => "altsyncram",
-		numwords_a => 49152,
-		operation_mode => "SINGLE_PORT",
-		outdata_aclr_a => "NONE",
-		outdata_reg_a => outdata_reg_a,
-		power_up_uninitialized => "FALSE",
-		read_during_write_mode_port_a => "NEW_DATA_NO_NBE_READ",
-		widthad_a => widthad_a,
-		width_a => width_a,
-		width_byteena_a => 1
-	)
-	PORT MAP (
-		wren_a => wren,
-		clock0 => clock,
-		address_a => address,
-		data_a => data,
-		q_a => sub_wire0
-	);
+process (clock)
+begin
+	if (clock'event and clock = '1') then
+		if wren='1' then
+			ram(to_integer(unsigned(address))) := data;
+			q <= data;
+		else
+			q <= ram(to_integer(unsigned(address)));
+		end if;
+	end if;
+end process;
 
 
-
-END SYN;
+end architecture;

@@ -315,7 +315,7 @@ set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_COLOR 2147039 -section_id Top
 
 set_global_assignment -name ENABLE_SIGNALTAP OFF
-set_global_assignment -name USE_SIGNALTAP_FILE out/stp1.stp
+set_global_assignment -name USE_SIGNALTAP_FILE out/joy.stp
 set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
 set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_HS
@@ -330,17 +330,16 @@ set_global_assignment -name SYSTEMVERILOG_FILE mist_sd_card.sv
 set_global_assignment -name VERILOG_FILE sdram.v
 set_global_assignment -name VERILOG_FILE osd.v
 set_global_assignment -name QIP_FILE mist_clk.qip
+set_global_assignment -name QIP_FILE ../t65/t65.qip
 set_global_assignment -name VHDL_FILE ../video_generator.vhd
 set_global_assignment -name VHDL_FILE ../tv_controller.vhd
 set_global_assignment -name VHDL_FILE ../timing_generator.vhd
 set_global_assignment -name VHDL_FILE ../spram.vhd
 set_global_assignment -name VHDL_FILE ../PS2_Ctrl.vhd
 set_global_assignment -name VERILOG_FILE ../ramcard.v
-set_global_assignment -name QIP_FILE ../roms.qip
 set_global_assignment -name VHDL_FILE ../keyboard.vhd
 set_global_assignment -name VHDL_FILE ../disk_ii_rom.vhd
 set_global_assignment -name VHDL_FILE ../disk_ii.vhd
-set_global_assignment -name VHDL_FILE ../cpu6502.vhd
 set_global_assignment -name VHDL_FILE ../character_rom.vhd
 set_global_assignment -name VHDL_FILE ../apple2.vhd
 set_global_assignment -name VHDL_FILE ../mockingboard/YM2149_volmix.vhd
@@ -348,4 +347,7 @@ set_global_assignment -name VHDL_FILE ../mockingboard/vol_table_array.vhd
 set_global_assignment -name VHDL_FILE ../mockingboard/mockingboard.vhd
 set_global_assignment -name VHDL_FILE ../mockingboard/m6522.vhd
 set_global_assignment -name VHDL_FILE ../mockingboard/dac.vhd
+set_global_assignment -name SIGNALTAP_FILE out/ram.stp
+set_global_assignment -name SIGNALTAP_FILE out/cpu.stp
+set_global_assignment -name SIGNALTAP_FILE out/joy.stp
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

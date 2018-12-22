@@ -52,8 +52,11 @@ architecture rtl of apple2 is
   component ramcard is
     port ( mclk28: in std_logic;
            reset_in: in std_logic;
+           PAGE2, HIRES, RAMRD, RAMWRT, STORE80, ALTZP: in std_logic;
            addr: in std_logic_vector(15 downto 0);
-           ram_addr: out std_logic_vector(17 downto 0);          
+           video_addr: in std_logic_vector(15 downto 0);
+           ram_addr: out std_logic_vector(17 downto 0);
+           video_ram_addr: out std_logic_vector(17 downto 0);
            we: in std_logic;  
            card_ram_we: out std_logic;
            card_ram_rd: out std_logic;
@@ -71,9 +74,10 @@ architecture rtl of apple2 is
   signal VIDEO_ADDRESS : unsigned(15 downto 0);
   signal LDPS_N : std_logic;
   signal H0, VA, VB, VC, V2, V4 : std_logic;
-  signal BLANK, LD194_I : std_logic;
+  signal VBL_REG, BLANK, LD194_I : std_logic;
 
   signal HIRES : std_logic;             -- from video generator B11 p6
+  signal DHIRES : std_logic;
   
   -- Soft switches
   signal soft_switches : std_logic_vector(7 downto 0) := "00000000";
@@ -81,6 +85,19 @@ architecture rtl of apple2 is
   signal MIXED_MODE : std_logic;
   signal PAGE2 : std_logic;
   signal HIRES_MODE : std_logic;
+  signal DHIRES_MODE : std_logic;
+
+  -- ][e auxilary switches
+  signal RAMRD : std_logic;
+  signal RAMWRT : std_logic;
+  signal CXROM : std_logic;
+  signal STORE80 : std_logic;
+  signal C3ROM : std_logic;
+  signal ALTZP : std_logic;
+  signal ALTCHAR : std_logic;
+  signal COL80 : std_logic;
+  signal IOUDIS : std_logic;
+  signal SF_D : std_logic;
 
   -- CPU signals
   signal D_IN : unsigned(7 downto 0);
@@ -100,9 +117,11 @@ architecture rtl of apple2 is
   signal KEYBOARD_SELECT : std_logic := '0';
   signal SPEAKER_SELECT : std_logic;
   signal SOFTSWITCH_SELECT : std_logic;
+  signal SOFTSWITCH_RD_SELECT : std_logic;
   signal ROM_SELECT : std_logic;
   signal GAMEPORT_SELECT : std_logic;
   signal IO_STROBE : std_logic;
+  signal PDL_STROBE_REG : std_logic;
 
   -- Speaker signal
   signal speaker_sig : std_logic := '0';        
@@ -111,6 +130,7 @@ architecture rtl of apple2 is
   
   -- ramcard
   signal card_addr : unsigned(17 downto 0);
+  signal card_video_addr: unsigned(17 downto 0);
   signal card_ram_rd : std_logic;
   signal card_ram_we : std_logic;
   signal ram_card_read : std_logic;
@@ -129,7 +149,7 @@ begin
   CLK_2M <= Q3;
   PRE_PHASE_ZERO <= PRE_PHASE_ZERO_sig;
 
-  ram_addr <= card_addr when PHASE_ZERO = '1' else "00" & VIDEO_ADDRESS;
+  ram_addr <= card_addr when PHASE_ZERO = '1' else card_video_addr;
   ram_we <= ((we and RAM_SELECT) or (we and ram_card_write)) when PHASE_ZERO = '1' else '0';
 
   -- Latch RAM data on the rising edge of RAS
@@ -147,11 +167,13 @@ begin
   
   IO_SELECT <= ioselect;
   DEVICE_SELECT <= devselect;
+  PDL_STROBE <= PDL_STROBE_REG;
   
   -- Address decoding
-  rom_addr <= (A(13) and A(12)) & (not A(12)) & A(11 downto 0);
+--  rom_addr <= (A(13) and A(12)) & (not A(12)) & A(11 downto 0);
+  rom_addr <= A(13 downto 0);
 
-  address_decoder: process (A)
+  address_decoder: process (A, C3ROM, CXROM)
   begin
     ROM_SELECT <= '0';
     RAM_SELECT <= '0';
@@ -159,8 +181,9 @@ begin
     READ_KEY <= '0';
     SPEAKER_SELECT <= '0';
     SOFTSWITCH_SELECT <= '0';
+    SOFTSWITCH_RD_SELECT <= '0';
     GAMEPORT_SELECT <= '0';
-    PDL_STROBE <= '0';
+    PDL_STROBE_REG <= '0';
     STB <= '0';
     ioselect <= (others => '0');
     devselect <= (others => '0');
@@ -175,9 +198,14 @@ begin
               when x"0" =>              -- C000 - C0FF
                 case A(7 downto 4) is
                   when x"0" =>          -- C000 - C00F
-                    KEYBOARD_SELECT <= '1';
+                     KEYBOARD_SELECT <= '1';
                   when x"1" =>          -- C010 - C01F
-                    READ_KEY <= '1';
+                     case A(3 downto 0) is
+                        when x"0" | x"1" | x"2" =>
+                           READ_KEY <= '1';
+                        when others =>
+                           SOFTSWITCH_RD_SELECT <= '1';
+                     end case;
                   when x"3" =>          -- C030 - C03F
                     SPEAKER_SELECT <= '1';
                   when x"4" =>
@@ -187,18 +215,32 @@ begin
                   when x"6" =>          -- C060 - C06F
                     GAMEPORT_SELECT <= '1';
                   when x"7" =>          -- C070 - C07F
-                    PDL_STROBE <= '1';
+                    PDL_STROBE_REG <= '1';
                   when x"8" | x"9" | x"A" |  -- C080 - C0FF
                        x"B" | x"C" | x"D" | x"E" | x"F" =>
                     devselect(TO_INTEGER(A(6 downto 4))) <= '1';
                   when others => null;                
                 end case;
-              when x"1" | x"2" | x"3" |  -- C100 - C7FF
+              when x"1" | x"2" |   -- C100 - C2FF, C400-C7FF
                    x"4" | x"5" | x"6" | x"7" =>
-                ioselect(TO_INTEGER(A(10 downto 8))) <= '1';
+                if CXROM = '1' then
+                  ROM_SELECT <= '1';
+                else
+                  ioselect(TO_INTEGER(A(10 downto 8))) <= '1';
+                end if;
+              when x"3" => -- C300 - C3FF
+                if CXROM = '1' or C3ROM = '0' then
+                  ROM_SELECT <= '1';
+                else
+                  ioselect(TO_INTEGER(A(10 downto 8))) <= '1';
+                end if;
               when x"8" | x"9" | x"A" |  -- C800 - CFFF
                    x"B" | x"C" | x"D" | x"E" | x"F" =>
-                IO_STROBE <= '1';
+                if CXROM = '1' then
+                  ROM_SELECT <= '1';
+                else
+                  IO_STROBE <= '1';
+                end if;
               when others => null;
             end case;
           when "01" | "10" | "11" =>    -- D000 - FFFF
@@ -224,6 +266,7 @@ begin
     if rising_edge(Q3) then
       if PRE_PHASE_ZERO_sig = '1' and SOFTSWITCH_SELECT = '1' then
         soft_switches(TO_INTEGER(A(3 downto 1))) <= A(0);
+        if IOUDIS = '0' and A(3 downto 1) = "111" then DHIRES_MODE <= A(0); end if;
       end if;
     end if;
   end process softswitches;
@@ -234,10 +277,59 @@ begin
   HIRES_MODE <= soft_switches(3);
   AN <= soft_switches(7 downto 4);
 
+  softswitches_IIe: process (Q3, reset)
+  begin
+    if reset = '1' then
+      STORE80 <= '0';
+      RAMRD <= '0';
+      RAMWRT <= '0';
+      CXROM <= '0';
+      ALTZP <= '0';
+      C3ROM <= '0';
+      COL80 <= '0';
+      ALTCHAR <= '0';
+    elsif rising_edge(Q3) then
+      if PRE_PHASE_ZERO_sig = '1' and KEYBOARD_SELECT = '1' and we = '1' then
+        case A(3 downto 1) is
+        when "000" => STORE80 <= A(0);
+        when "001" => RAMRD <= A(0);
+        when "010" => RAMWRT <= A(0);
+        when "011" => CXROM <= A(0);
+        when "100" => ALTZP <= A(0);
+        when "101" => C3ROM <= A(0);
+        when "110" => COL80 <= A(0);
+        when "111" => ALTCHAR <= A(0);
+        when others => null;
+        end case;
+      elsif PRE_PHASE_ZERO_sig = '1' and PDL_STROBE_REG = '1' and we = '1' then
+        if A(3 downto 1) = "111" then IOUDIS <= A(0); end if;
+      elsif SOFTSWITCH_RD_SELECT = '1' and we = '0' then
+        case A(3 downto 0) is
+        when x"3" => SF_D <= RAMRD;
+        when x"4" => SF_D <= RAMWRT;
+        when x"5" => SF_D <= CXROM;
+        when x"6" => SF_D <= ALTZP;
+        when x"7" => SF_D <= C3ROM;
+        when x"8" => SF_D <= STORE80;
+        when x"9" => SF_D <= not VBL_REG;
+        when x"A" => SF_D <= TEXT_MODE;
+        when x"B" => SF_D <= MIXED_MODE;
+        when x"C" => SF_D <= PAGE2;
+        when x"D" => SF_D <= HIRES_MODE;
+        when x"E" => SF_D <= ALTCHAR;
+        when x"F" => SF_D <= COL80;
+        when others => null;
+        end case;
+      end if;
+    end if;
+  end process softswitches_IIe;
+  
+  
   speaker <= speaker_sig;
   
   D_IN <= DL when RAM_SELECT = '1' or ram_card_read = '1' else  -- RAM
           K when KEYBOARD_SELECT = '1' else  -- Keyboard
+          SF_D & "0000000" when SOFTSWITCH_RD_SELECT = '1' else -- ][e softswitches
           GAMEPORT(TO_INTEGER(A(2 downto 0))) & "0000000"  -- Gameport
              when GAMEPORT_SELECT = '1' else
           rom_out when ROM_SELECT = '1' else  -- ROMs
@@ -245,6 +337,7 @@ begin
           PD;                           -- Peripherals
 
   LD194 <= LD194_I;
+  VBL <= VBL_REG;
 
   timing : entity work.timing_generator port map (
     CLK_14M        => CLK_14M,
@@ -266,7 +359,7 @@ begin
     VC             => VC,
     V2             => V2,
     V4             => V4,
-    VBL            => VBL,
+    VBL            => VBL_REG,
     HBL            => HBL,
     BLANK          => BLANK,
     LDPS_N         => LDPS_N,
@@ -317,10 +410,14 @@ begin
 
   -- Original Apple had asynchronous ROMs.  We use a synchronous ROM
   -- that needs its address earlier, hence the odd clock.
-  roms : entity work.roms port map (
-    address => std_logic_vector(rom_addr),
-    clock  => CLK_14M,
-    unsigned(q) => rom_out);
+  roms : work.spram
+  generic map (14,8,"../roms/apple2e.mif")
+  port map (
+   address => std_logic_vector(rom_addr),
+   clock => CLK_14M,
+   data => (others=>'0'),
+   wren => '0',
+   unsigned(q) => rom_out);
     
   -- ramcard  
   ram_card_D: component ramcard
@@ -328,14 +425,22 @@ begin
     (
       mclk28 => CLK_14M,
       reset_in => reset,
+      PAGE2 => PAGE2,
+      HIRES => HIRES_MODE,
+      RAMRD => RAMRD,
+      RAMWRT => RAMWRT,
+      ALTZP => ALTZP,
+      STORE80 => STORE80,
       addr => std_logic_vector(A),
+      video_addr => std_logic_vector(VIDEO_ADDRESS),
       unsigned(ram_addr) => card_addr,
+      unsigned(video_ram_addr) => card_video_addr,
       we => we,
       card_ram_we => card_ram_we,
       card_ram_rd => card_ram_rd,
       bank1 => open
     );
-    
+
     ram_card_read  <= ROM_SELECT and card_ram_rd;
     ram_card_write <= ROM_SELECT and card_ram_we;
     

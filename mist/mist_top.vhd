@@ -376,12 +376,13 @@ architecture datapath of mist_top is
 
 begin
 
-  reset <= status(0) or power_on_reset or force_reset;
 
   -- In the Apple ][, this was a 555 timer
   power_on : process(CLK_14M)
   begin
     if rising_edge(CLK_14M) then
+      reset <= status(0) or power_on_reset or force_reset;
+
       if buttons(1)='1' or status(7) = '1' then
         power_on_reset <= '1';
         flash_clk <= (others=>'0');
