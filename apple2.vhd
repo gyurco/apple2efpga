@@ -394,17 +394,13 @@ begin
   A <= unsigned(T65_A(15 downto 0)) when cpu = '0' else R65C02_A;
   D_OUT <= unsigned(T65_DO) when cpu = '0' else R65C02_DO;
   T65_DI <= std_logic_vector(D_OUT) when T65_WE_N = '0' else std_logic_vector(D_IN);
+  CPU_EN <= '1' when PHASE_ZERO_D = '1' and PHASE_ZERO = '0' else '0';
 
   cpu_enable: process (CLK_14M)
   begin
     if rising_edge(CLK_14M) then
       PHASE_ZERO_D <= PHASE_ZERO;
       CPU_EN_POST <= CPU_EN;
-      if PHASE_ZERO_D = '1' and PHASE_ZERO = '0' then
-        CPU_EN <= '1';
-      else
-        CPU_EN <= '0';
-      end if;
     end if;
   end process cpu_enable;
 
@@ -474,10 +470,8 @@ begin
     
   mb : work.mockingboard
     port map (
-      CLK14M    => CLK_14M,
-      CLK_VIA   => not Q3,
-      CLK_PSG   => not PHASE_ZERO,
-      I_P2_H    => not PHASE_ZERO,
+      CLK_14M    => CLK_14M,
+      PHASE_ZERO => PHASE_ZERO,
       I_RESET_L => not reset,
       I_ENA_H   => mb_enabled,
       
