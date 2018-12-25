@@ -253,7 +253,7 @@ architecture datapath of mist_top is
   signal DO : std_logic_vector(7 downto 0);
 
   signal we_ram : std_logic;
-  signal VIDEO, HBL, VBL, LD194 : std_logic;
+  signal VIDEO, HBL, VBL : std_logic;
   signal COLOR_LINE : std_logic;
   signal COLOR_LINE_CONTROL : std_logic;
   signal SCREEN_MODE : std_logic_vector(1 downto 0);
@@ -497,7 +497,6 @@ begin
     COLOR_LINE     => COLOR_LINE,
     HBL            => HBL,
     VBL            => VBL,
-    LD194          => LD194,
     K              => K,
     read_key       => read_key,
     AN             => open,
@@ -519,10 +518,9 @@ begin
     CLK_14M    => CLK_14M,
     VIDEO      => VIDEO,
     COLOR_LINE => COLOR_LINE_CONTROL,
-	 SCREEN_MODE => SCREEN_MODE,
+    SCREEN_MODE => SCREEN_MODE,
     HBL        => HBL,
     VBL        => VBL,
-    LD194      => LD194,
     VGA_CLK    => open,
     VGA_HS     => hsync,
     VGA_VS     => vsync,

@@ -26,7 +26,6 @@ entity apple2 is
     COLOR_LINE     : out std_logic;
     HBL            : out std_logic;
     VBL            : out std_logic;
-    LD194          : out std_logic;
     K              : in unsigned(7 downto 0);    -- Keyboard data
     READ_KEY       : out std_logic;              -- Processor has read key
     AN             : out std_logic_vector(3 downto 0);  -- Annunciator outputs
@@ -67,14 +66,16 @@ architecture rtl of apple2 is
   -- Clocks
   signal CLK_7M : std_logic;
   signal Q3, RAS_N, CAS_N, AX : std_logic;
-  signal PHASE_ZERO, PRE_PHASE_ZERO_sig : std_logic;
+  signal PHASE_ZERO, PHASE_ZERO_D, PRE_PHASE_ZERO_sig : std_logic;
   signal COLOR_REF : std_logic;
+  signal CPU_EN, CPU_EN_POST : std_logic;
 
   -- From the timing generator
   signal VIDEO_ADDRESS : unsigned(15 downto 0);
   signal LDPS_N : std_logic;
-  signal H0, VA, VB, VC, V2, V4 : std_logic;
-  signal VBL_REG, BLANK, LD194_I : std_logic;
+  signal H0 : std_logic;
+  signal VBL_REG, BLANK, GR2 : std_logic;
+  signal SEGA, SEGB, SEGC : std_logic;
 
   signal HIRES : std_logic;             -- from video generator B11 p6
   signal DHIRES : std_logic;
@@ -126,7 +127,7 @@ architecture rtl of apple2 is
   -- Speaker signal
   signal speaker_sig : std_logic := '0';        
 
-  signal DL : unsigned(7 downto 0);     -- Latched RAM data
+  signal CPU_DL, VIDEO_DL : unsigned(7 downto 0);     -- Latched RAM data
   
   -- ramcard
   signal card_addr : unsigned(17 downto 0);
@@ -156,19 +157,24 @@ begin
   RAM_data_latch : process (CLK_14M)
   begin
     if rising_edge(CLK_14M) then
-      if AX = '1' and CAS_N = '0' and RAS_N = '0' then
-        DL <= ram_do;
+--      if AX = '1' and CAS_N = '0' and RAS_N = '0' then
+      if AX = '0' and CAS_N = '0' and RAS_N = '0' and Q3 = '1' then
+        if PHASE_ZERO = '0' then
+            VIDEO_DL <= ram_do;
+        else
+            CPU_DL <= ram_do;
+        end if;
       end if;
     end if;
   end process;
 
   ADDR <= A;
   D <= D_OUT;
-  
+
   IO_SELECT <= ioselect;
   DEVICE_SELECT <= devselect;
   PDL_STROBE <= PDL_STROBE_REG;
-  
+
   -- Address decoding
 --  rom_addr <= (A(13) and A(12)) & (not A(12)) & A(11 downto 0);
   rom_addr <= A(13 downto 0);
@@ -252,19 +258,19 @@ begin
     end case;        
   end process address_decoder;
 
-  speaker_ctrl: process (Q3)
+  speaker_ctrl: process (CLK_14M)
   begin
-    if rising_edge(Q3) then
-      if PRE_PHASE_ZERO_sig = '1' and SPEAKER_SELECT = '1' then
+    if rising_edge(CLK_14M) then
+      if CPU_EN_POST = '1' and SPEAKER_SELECT = '1' then
         speaker_sig <= not speaker_sig;
       end if;
     end if;
   end process speaker_ctrl;
 
-  softswitches: process (Q3)
+  softswitches: process (CLK_14M)
   begin
-    if rising_edge(Q3) then
-      if PRE_PHASE_ZERO_sig = '1' and SOFTSWITCH_SELECT = '1' then
+    if rising_edge(CLK_14M) then
+      if SOFTSWITCH_SELECT = '1' then
         soft_switches(TO_INTEGER(A(3 downto 1))) <= A(0);
         if IOUDIS = '0' and A(3 downto 1) = "111" then DHIRES_MODE <= A(0); end if;
       end if;
@@ -277,7 +283,7 @@ begin
   HIRES_MODE <= soft_switches(3);
   AN <= soft_switches(7 downto 4);
 
-  softswitches_IIe: process (Q3, reset)
+  softswitches_IIe: process (CLK_14M, reset)
   begin
     if reset = '1' then
       STORE80 <= '0';
@@ -288,8 +294,8 @@ begin
       C3ROM <= '0';
       COL80 <= '0';
       ALTCHAR <= '0';
-    elsif rising_edge(Q3) then
-      if PRE_PHASE_ZERO_sig = '1' and KEYBOARD_SELECT = '1' and we = '1' then
+    elsif rising_edge(CLK_14M) then
+      if CPU_EN_POST = '1' and KEYBOARD_SELECT = '1' and we = '1' then
         case A(3 downto 1) is
         when "000" => STORE80 <= A(0);
         when "001" => RAMRD <= A(0);
@@ -301,7 +307,7 @@ begin
         when "111" => ALTCHAR <= A(0);
         when others => null;
         end case;
-      elsif PRE_PHASE_ZERO_sig = '1' and PDL_STROBE_REG = '1' and we = '1' then
+      elsif CPU_EN_POST = '1' and PDL_STROBE_REG = '1' and we = '1' then
         if A(3 downto 1) = "111" then IOUDIS <= A(0); end if;
       elsif SOFTSWITCH_RD_SELECT = '1' and we = '0' then
         case A(3 downto 0) is
@@ -323,11 +329,10 @@ begin
       end if;
     end if;
   end process softswitches_IIe;
-  
-  
+
   speaker <= speaker_sig;
-  
-  D_IN <= DL when RAM_SELECT = '1' or ram_card_read = '1' else  -- RAM
+
+  D_IN <= CPU_DL when RAM_SELECT = '1' or ram_card_read = '1' else  -- RAM
           K when KEYBOARD_SELECT = '1' else  -- Keyboard
           SF_D & "0000000" when SOFTSWITCH_RD_SELECT = '1' else -- ][e softswitches
           GAMEPORT(TO_INTEGER(A(2 downto 0))) & "0000000"  -- Gameport
@@ -336,12 +341,11 @@ begin
           psg_do when (devselect(4) = '1' or ioselect(4) = '1') and mb_enabled = '1' else
           PD;                           -- Peripherals
 
-  LD194 <= LD194_I;
   VBL <= VBL_REG;
 
   timing : entity work.timing_generator port map (
     CLK_14M        => CLK_14M,
-    CLK_7M         => CLK_7M,
+    VID7M          => CLK_7M,
     CAS_N          => CAS_N,
     RAS_N          => RAS_N,
     Q3	           => Q3,
@@ -351,53 +355,58 @@ begin
     COLOR_REF      => COLOR_REF,
     TEXT_MODE      => TEXT_MODE,
     PAGE2          => PAGE2,
-    HIRES          => HIRES,
+    HIRES_MODE     => HIRES_MODE,
+    MIXED_MODE     => MIXED_MODE,
+    COL80          => COL80,
+    VID7           => VIDEO_DL(7),
     VIDEO_ADDRESS  => VIDEO_ADDRESS,
     H0             => H0,
-    VA             => VA,
-    VB             => VB,
-    VC             => VC,
-    V2             => V2,
-    V4             => V4,
+    SEGA           => SEGA,
+    SEGB           => SEGB,
+    SEGC           => SEGC,
+    GR1            => COLOR_LINE,
+    GR2            => GR2,
     VBL            => VBL_REG,
     HBL            => HBL,
     BLANK          => BLANK,
-    LDPS_N         => LDPS_N,
-    LD194          => LD194_I);
+    LDPS_N         => LDPS_N);
 
   video_display : entity work.video_generator port map (
     CLK_14M    => CLK_14M,
     CLK_7M     => CLK_7M,
-    AX         => AX,
-    CAS_N      => CAS_N,
-    TEXT_MODE  => TEXT_MODE,
-    PAGE2      => PAGE2,
-    HIRES_MODE => HIRES_MODE,
-    MIXED_MODE => MIXED_MODE,
-    H0         => H0,
-    VA         => VA,
-    VB         => VB,
-    VC         => VC,
-    V2         => V2,
-    V4         => V4,
+    GR2        => GR2,
+    SEGA         => SEGA,
+    SEGB         => SEGB,
+    SEGC         => SEGC,
+    ALTCHAR      => ALTCHAR,
     BLANK      => BLANK,
-    DL         => DL,
+    DL         => VIDEO_DL,
     LDPS_N     => LDPS_N,
-    LD194      => LD194_I,
     FLASH_CLK  => FLASH_CLK,
-    HIRES      => HIRES,
-    VIDEO      => VIDEO,
-    COLOR_LINE => COLOR_LINE);
+    VIDEO      => VIDEO);
 
     we <= not we_n;
     A <= unsigned(T65_A(15 downto 0));
     T65_DI <= std_logic_vector(D_OUT) when we_n = '0' else std_logic_vector(D_IN);
 
-    cpu : entity work.T65
+  cpu_enable: process (CLK_14M)
+  begin
+    if rising_edge(CLK_14M) then
+      PHASE_ZERO_D <= PHASE_ZERO;
+      CPU_EN_POST <= CPU_EN;
+      if PHASE_ZERO_D = '1' and PHASE_ZERO = '0' then
+        CPU_EN <= '1';
+      else
+        CPU_EN <= '0';
+      end if;
+    end if;
+  end process cpu_enable;
+
+  cpu : entity work.T65
     port map (
       mode     => "00",
-      clk      => Q3,
-      enable   => not PRE_PHASE_ZERO_sig,
+      clk      => CLK_14M,
+      enable   => CPU_EN,
       res_n    => not reset,
 
       IRQ_n    => psg_irq_n,

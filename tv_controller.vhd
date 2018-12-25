@@ -64,8 +64,7 @@ entity tv_controller is
     SCREEN_MODE: in std_logic_vector(1 downto 0); -- 00: Color, 01: B&W, 10: Green, 11: Amber
     HBL        : in std_logic;
     VBL        : in std_logic;
-    LD194      : in std_logic;
-    
+
     VGA_CLK    : out std_logic;
     VGA_HS     : out std_logic;             -- Active low
     VGA_VS     : out std_logic;             -- Active low
@@ -110,24 +109,14 @@ architecture rtl of tv_controller is
   signal VGA_VS_I, VGA_HS_I : std_logic;
 
   signal video_active : std_logic;
-  signal hbl_delayed : std_logic;
   signal color_line_delayed_1, color_line_delayed_2 : std_logic;
 
 begin
- 
-  delay_hbl : process (clk_14m)
-  begin
-    if rising_edge(clk_14m) then
-      if LD194 = '0' then
-        hbl_delayed <= HBL;
-      end if;
-    end if;
-  end process;
 
   hcount_vcount_control : process (clk_14m)
   begin
     if rising_edge(clk_14m) then
-      if last_hbl = '1' and hbl_delayed = '0' then  -- Falling edge
+      if last_hbl = '1' and HBL = '0' then  -- Falling edge
         last_vbl <= VBL;
         color_line_delayed_2 <= color_line_delayed_1;
         color_line_delayed_1 <= COLOR_LINE;
@@ -139,7 +128,7 @@ begin
       else
         hcount <= hcount + 1;
       end if;
-      last_hbl <= hbl_delayed;
+      last_hbl <= HBL;
     end if;
   end process hcount_vcount_control;
 
