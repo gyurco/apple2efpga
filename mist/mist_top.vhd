@@ -246,7 +246,7 @@ architecture datapath of mist_top is
     );
   end component;
 
-  signal CLK_28M, CLK_14M, CLK_2M, PRE_PHASE_ZERO : std_logic;
+  signal CLK_28M, CLK_14M, CLK_2M, CLK_2M_D, PRE_PHASE_ZERO : std_logic;
   signal clk_div : unsigned(1 downto 0);
   signal IO_SELECT, DEVICE_SELECT : std_logic_vector(7 downto 0);
   signal ADDR : unsigned(15 downto 0);
@@ -418,10 +418,12 @@ begin
   joy_an <= joy_an0 when status(5)='0' else joy_an1;
   joy <= joy0 when status(5)='0' else joy1;
   
-  process(CLK_2M, pdl_strobe)
+  process(CLK_14M, pdl_strobe)
     variable cx, cy : integer range -100 to 5800 := 0;
   begin
-    if rising_edge(CLK_2M) then
+    if rising_edge(CLK_14M) then
+     CLK_2M_D <= CLK_2M;
+     if CLK_2M_D = '0' and CLK_2M = '1' then
       if cx > 0 then
         cx := cx -1;
         joyx <= '1';
@@ -448,6 +450,7 @@ begin
           cy := 5650;
         end if;
       end if;
+     end if;
     end if;
   end process;
 
