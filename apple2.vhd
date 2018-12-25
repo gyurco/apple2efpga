@@ -16,6 +16,7 @@ entity apple2 is
     PRE_PHASE_ZERO : out std_logic;
     FLASH_CLK      : in  std_logic;        -- approx. 2 Hz flashing char clock
     reset          : in  std_logic;
+    cpu            : in  std_logic;              -- 0 - 6502, 1 - 65C02
     ADDR           : out unsigned(15 downto 0);  -- CPU address
     ram_addr       : out unsigned(17 downto 0);  -- RAM address
     D              : out unsigned(7 downto 0);   -- Data to RAM
@@ -106,8 +107,12 @@ architecture rtl of apple2 is
   signal A : unsigned(15 downto 0);
   signal T65_A : std_logic_vector(23 downto 0);
   signal T65_DI : std_logic_vector(7 downto 0);
+  signal T65_DO : std_logic_vector(7 downto 0);
+  signal T65_WE_N : std_logic;
+  signal R65C02_A : unsigned(15 downto 0);
+  signal R65C02_DO : unsigned(7 downto 0);
+  signal R65C02_WE_N : std_logic;
   signal we : std_logic;
-  signal we_n : std_logic;
 
   -- Main ROM signals
   signal rom_out : unsigned(7 downto 0);
@@ -385,9 +390,10 @@ begin
     FLASH_CLK  => FLASH_CLK,
     VIDEO      => VIDEO);
 
-    we <= not we_n;
-    A <= unsigned(T65_A(15 downto 0));
-    T65_DI <= std_logic_vector(D_OUT) when we_n = '0' else std_logic_vector(D_IN);
+  we <= not T65_WE_N when cpu = '0' else not R65C02_WE_N;
+  A <= unsigned(T65_A(15 downto 0)) when cpu = '0' else R65C02_A;
+  D_OUT <= unsigned(T65_DO) when cpu = '0' else R65C02_DO;
+  T65_DI <= std_logic_vector(D_OUT) when T65_WE_N = '0' else std_logic_vector(D_IN);
 
   cpu_enable: process (CLK_14M)
   begin
@@ -402,7 +408,7 @@ begin
     end if;
   end process cpu_enable;
 
-  cpu : entity work.T65
+  cpu6502 : entity work.T65
     port map (
       mode     => "00",
       clk      => CLK_14M,
@@ -411,10 +417,23 @@ begin
 
       IRQ_n    => psg_irq_n,
       NMI_n    => '1',
-      R_W_n    => we_n,
+      R_W_n    => T65_WE_N,
       A        => T65_A,
       DI       => T65_DI,
-      unsigned(DO)       => D_OUT
+      DO       => T65_DO
+    );
+
+  cpu65c02: entity work.R65C02
+    port map (
+        reset => not reset,
+        clk => CLK_14M,
+        enable => CPU_EN,
+        nmi_n => '1',
+        irq_n => psg_irq_n,
+        di => D_IN,
+        do => R65C02_DO,
+        addr => R65C02_A,
+        nwe => R65C02_WE_N
     );
 
   -- Original Apple had asynchronous ROMs.  We use a synchronous ROM
@@ -452,8 +471,6 @@ begin
 
     ram_card_read  <= ROM_SELECT and card_ram_rd;
     ram_card_write <= ROM_SELECT and card_ram_we;
-    
-    
     
   mb : work.mockingboard
     port map (

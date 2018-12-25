@@ -78,6 +78,7 @@ architecture datapath of mist_top is
   constant CONF_STR : string :=
    "AppleII;;"&
    "S,NIB;"&
+   "O1,CPU Type,6502,65C02;"&
    "O2,Monitor Type,Color,Monochrome;"&
    "O3,Monitor Mode,Main,Alt;"&
    "OBC,Scanlines,Off,25%,50%,75%;"&
@@ -487,6 +488,7 @@ begin
     PRE_PHASE_ZERO => PRE_PHASE_ZERO,
     FLASH_CLK      => flash_clk(22),
     reset          => reset,
+    cpu            => status(1),
     ADDR           => ADDR,
     ram_addr       => a_ram,
     D              => D,
