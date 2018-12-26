@@ -363,6 +363,7 @@ begin
     HIRES_MODE     => HIRES_MODE,
     MIXED_MODE     => MIXED_MODE,
     COL80          => COL80,
+    DHIRES_MODE    => DHIRES_MODE,
     VID7           => VIDEO_DL(7),
     VIDEO_ADDRESS  => VIDEO_ADDRESS,
     H0             => H0,

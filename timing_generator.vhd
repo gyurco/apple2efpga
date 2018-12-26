@@ -33,6 +33,7 @@ entity timing_generator is
     HIRES_MODE     : in std_logic;
     MIXED_MODE     : in std_logic;
     COL80          : in std_logic;
+    DHIRES_MODE    : in std_logic;
 
     VID7           : in std_logic;
 
@@ -60,12 +61,13 @@ architecture rtl of timing_generator is
   signal CLK_7M: std_logic;
   signal RAS_N_PRE, AX_PRE, CAS_N_PRE, Q3_PRE, PHI0_PRE, VID7M_PRE, LDPS_N_PRE: std_logic;
   signal RASRISE1 : std_logic;
-  signal VA, VB, VC, V2, V4, GR3: std_logic;
+  signal VA, VB, VC, V2, V4, GR2_G, GR3: std_logic;
   signal HIRES : std_logic;
 
 begin
     PRE_PHI0 <= PHI0_PRE;
     RASRISE1 <= '1' when RAS_N = '1' and PHI0 = '0' and Q3 ='0' else '0';
+    GR2_G <= GR2 and DHIRES_MODE;
 
     -- The main clock signal generator
     B1_74S175 : process (CLK_14M)
@@ -98,21 +100,21 @@ begin
          or (not PHI0 and not RAS_N)
          or (not PHI0 and Q3));
     VID7M_PRE <= not (
-            (GR2 and SEGB)
-         or (not GR2 and COL80)
-         or (not GR2 and CLK_7M)
+            (GR2_G and SEGB)
+         or (not GR2_G and COL80)
+         or (not GR2_G and CLK_7M)
          or (not VID7 and not PHI0 and not Q3 and not AX)
          or (not H0 and COLOR_REF and not PHI0 and not Q3 and not AX)
          or (VID7M and AX)
          or (VID7M and PHI0)
          or (VID7M and Q3));
     LDPS_N_PRE <= not (
-            (not Q3 and not AX and COL80 and not GR2)
-         or (not Q3 and not AX and not PHI0 and not GR2)
+            (not Q3 and not AX and COL80 and not GR2_G)
+         or (not Q3 and not AX and not PHI0 and not GR2_G)
          or (not Q3 and not AX and not PHI0 and not SEGB)
          or (not Q3 and not AX and not PHI0 and not VID7)
          or (not Q3 and not AX and not PHI0 and COLOR_REF and not H0)
-         or (not Q3 and AX and not RAS_N and not PHI0 and VID7 and not SEGB and GR2));
+         or (not Q3 and AX and not RAS_N and not PHI0 and VID7 and not SEGB and GR2_G));
 
     TIMING_HAL: process (CLK_14M)
     begin
