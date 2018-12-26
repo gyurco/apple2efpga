@@ -79,8 +79,7 @@ architecture datapath of mist_top is
    "AppleII;;"&
    "S,NIB;"&
    "O1,CPU Type,6502,65C02;"&
-   "O2,Monitor Type,Color,Monochrome;"&
-   "O3,Monitor Mode,Main,Alt;"&
+   "O23,Monitor,Color,B&W,Green,Amber;"&
    "OBC,Scanlines,Off,25%,50%,75%;"&
    "O5,Joysticks,Normal,Swapped;"&
    "O6,Mockingboard S4,off,on;"&
@@ -455,7 +454,7 @@ begin
   end process;
 
   COLOR_LINE_CONTROL <= COLOR_LINE and not (status(2) or status(3));  -- Color or B&W mode
-  SCREEN_MODE <= status(2) & status(3); -- 00: Color, 01: B&W, 10:Green, 11: Amber
+  SCREEN_MODE <= status(3 downto 2); -- 00: Color, 01: B&W, 10:Green, 11: Amber
   
   -- sdram interface
   SDRAM_CKE <= '1';
@@ -519,7 +518,7 @@ begin
   AUDIO_L <= audiol or audio;
   AUDIO_R <= audior or audio;
 
-  vga : entity work.tv_controller port map (
+  tv : entity work.tv_controller port map (
     CLK_14M    => CLK_14M,
     VIDEO      => VIDEO,
     COLOR_LINE => COLOR_LINE_CONTROL,
