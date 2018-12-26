@@ -2,7 +2,7 @@
 --
 -- 15 kHz TV output for Apple ][
 --
--- by Szombathelyi GyÃ¶rgy
+-- by Szombathelyi György
 -- based on vga_controller by
 -- Stephen A. Edwards, sedwards@cs.columbia.edu
 --
@@ -92,7 +92,8 @@ architecture rtl of tv_controller is
   signal last_vbl : std_logic;
   signal hcount : unsigned(10 downto 0);
   signal vcount : unsigned(8 downto 0);
-  signal hactive, hactive_early2, hactive_early1 : std_logic;
+  signal hactive : std_logic;
+  signal hactive_shift_reg : std_logic_vector(8 downto 0) := "000000000";
 
   constant VGA_SCANLINE : integer := 456*2; -- Must be 456*2 (set by the Apple)
   
@@ -116,7 +117,7 @@ begin
   hcount_vcount_control : process (clk_14m)
   begin
     if rising_edge(clk_14m) then
-      if last_hbl = '1' and HBL = '0' then  -- Falling edge
+      if HBL = '0' and last_hbl = '1' then  -- Falling edge
         last_vbl <= VBL;
         color_line_delayed_2 <= color_line_delayed_1;
         color_line_delayed_1 <= COLOR_LINE;
@@ -142,13 +143,13 @@ begin
         VGA_HS_I <= '1';
       end if;
 
-      hactive <= hactive_early1;
-      hactive_early1 <= hactive_early2;
+      hactive_shift_reg <= hactive_shift_reg(7 downto 0) & hactive_shift_reg(0);
+      hactive <= hactive_shift_reg(8);
 
       if hcount = VGA_SCANLINE - 1 then
-        hactive_early2 <= '1';
+        hactive_shift_reg(0) <= '1';
       elsif hcount = VGA_ACTIVE then
-        hactive_early2 <= '0';
+        hactive_shift_reg(0) <= '0';
       end if;
     end if;
   end process hsync_gen;
