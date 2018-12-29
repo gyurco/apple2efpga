@@ -39,7 +39,8 @@ module sdram (
 	input					clkref,		// reference clock to sync to
 	
 	input [7:0]  		din,			// data input from chipset/cpu
-	output [7:0]      dout,			// data output to chipset/cpu
+	output [15:0]      dout,			// data output to chipset/cpu
+	input aux,
 	input [24:0]   	addr,       // 25 bit byte address
 	input 		 		we          // cpu/chipset requests write
 );
@@ -65,7 +66,7 @@ localparam STATE_CMD_CONT  = STATE_CMD_START  + RASCAS_DELAY; // 4 command can b
 localparam STATE_READ      = STATE_CMD_CONT + CAS_LATENCY + 4'd1;   // 
 localparam STATE_LAST      = 3'd7;   // last state in cycle
 
-assign dout = addr[0]?sd_data[7:0]:sd_data[15:8];
+assign dout = we?16'b0 : sd_data;
 
 reg [3:0] q /* synthesis noprune */;
 always @(posedge clk) begin
@@ -157,13 +158,13 @@ always @(posedge clk) begin
 			// is being stored during read. On write only one of the two
 			// bytes is enabled
 			if(!we) sd_dqm <= 2'b00;
-			else    sd_dqm <= { addr[0], ~addr[0] };
+			else    sd_dqm <= { ~aux, aux };
 		end
 				
 		// CAS phase 
 		if(q == STATE_CMD_CONT) begin
 			sd_cmd <= we?CMD_WRITE:CMD_READ;
-			sd_addr <= { 4'b0010, addr[24], addr[8:1] };  // auto precharge
+			sd_addr <= { 4'b0010, addr[8:0] };  // auto precharge
 		end
 
 		// always add a refresh cycle

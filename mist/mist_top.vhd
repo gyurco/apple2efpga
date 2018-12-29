@@ -189,7 +189,8 @@ architecture datapath of mist_top is
           clk : in std_logic;
           clkref : in std_logic;
           din : in std_logic_vector(7 downto 0);
-          dout : out std_logic_vector(7 downto 0);
+          dout : out std_logic_vector(15 downto 0);
+          aux : in std_logic;
           addr : in std_logic_vector(24 downto 0);
           we : in std_logic
     );
@@ -250,7 +251,8 @@ architecture datapath of mist_top is
   signal IO_SELECT, DEVICE_SELECT : std_logic_vector(7 downto 0);
   signal ADDR : unsigned(15 downto 0);
   signal D, PD: unsigned(7 downto 0);
-  signal DO : std_logic_vector(7 downto 0);
+  signal DO : std_logic_vector(15 downto 0);
+  signal aux : std_logic;
 
   signal we_ram : std_logic;
   signal VIDEO, HBL, VBL : std_logic;
@@ -310,7 +312,7 @@ architecture datapath of mist_top is
   signal downl : std_logic := '0';
   signal io_index : std_logic_vector(4 downto 0);
   signal size : std_logic_vector(24 downto 0) := (others=>'0');
-  signal a_ram: unsigned(17 downto 0);
+  signal a_ram: unsigned(15 downto 0);
   signal osd_clk : std_logic;
   signal r : unsigned(7 downto 0);
   signal g : unsigned(7 downto 0);
@@ -476,12 +478,13 @@ begin
               din => ram_di,
               addr => ram_addr,
               we => ram_we,
-              dout => DO
+              dout => DO,
+              aux => aux
     );
   
   -- Simulate power up on cold reset to go to the disk boot routine
   ram_we   <= we_ram when status(7) = '0' else '1';
-  ram_addr <= "0000000" & std_logic_vector(a_ram) when status(7) = '0' else std_logic_vector(to_unsigned(1012,ram_addr'length)); -- $3F4
+  ram_addr <= "000000000" & std_logic_vector(a_ram) when status(7) = '0' else std_logic_vector(to_unsigned(1012,ram_addr'length)); -- $3F4
   ram_di   <= std_logic_vector(D) when status(7) = '0' else "00000000";
   
   core : entity work.apple2 port map (
@@ -495,6 +498,7 @@ begin
     ram_addr       => a_ram,
     D              => D,
     ram_do         => unsigned(DO),
+    aux            => aux,
     PD             => PD,
     ram_we         => we_ram,
     VIDEO          => VIDEO,

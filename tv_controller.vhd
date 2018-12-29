@@ -2,7 +2,7 @@
 --
 -- 15 kHz TV output for Apple ][
 --
--- by Szombathelyi György
+-- by Szombathelyi GyÃ¶rgy
 -- based on vga_controller by
 -- Stephen A. Edwards, sedwards@cs.columbia.edu
 --
@@ -93,7 +93,7 @@ architecture rtl of tv_controller is
   signal hcount : unsigned(10 downto 0);
   signal vcount : unsigned(8 downto 0);
   signal hactive : std_logic;
-  signal hactive_shift_reg : std_logic_vector(8 downto 0) := "000000000";
+  signal hactive_shift_reg : std_logic_vector(15 downto 0) := (others => '0');
 
   constant VGA_SCANLINE : integer := 456*2; -- Must be 456*2 (set by the Apple)
   
@@ -143,8 +143,8 @@ begin
         VGA_HS_I <= '1';
       end if;
 
-      hactive_shift_reg <= hactive_shift_reg(7 downto 0) & hactive_shift_reg(0);
-      hactive <= hactive_shift_reg(8);
+      hactive_shift_reg <= hactive_shift_reg(14 downto 0) & hactive_shift_reg(0);
+      hactive <= hactive_shift_reg(15);
 
       if hcount = VGA_SCANLINE - 1 then
         hactive_shift_reg(0) <= '1';

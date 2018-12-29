@@ -25,6 +25,7 @@ entity MOCKINGBOARD is
     
     I_RW_L            : in std_logic;
     O_IRQ_L           : out std_logic;
+    O_NMI_L           : out std_logic;
     I_IOSEL_L         : in std_logic;
     I_RESET_L         : in std_logic;
     I_ENA_H           : in std_logic;     
@@ -93,7 +94,8 @@ entity MOCKINGBOARD is
 begin
 
   O_DATA <= o_data_l when I_ADDR(7) = '0' else o_data_r;
-  O_IRQ_L <= (not lirq and not rirq) or not I_ENA_H;
+  O_IRQ_L <= not lirq or not I_ENA_H;
+  O_NMI_L <= not rirq or not I_ENA_H;
 
   PSG_EN <= '1' when PHASE_ZERO = '0' and PHASE_ZERO_D = '1' else '0';
   VIA_CE_R <= '1' when PHASE_ZERO = '1' and PHASE_ZERO_D = '0' else '0';

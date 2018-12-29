@@ -45,8 +45,8 @@ module scandoubler
 // it
 
 reg [1:0] i_div;
-wire ce_x1 = (i_div == 2'b01);
-wire ce_x2 = i_div[0];
+wire ce_x1 = i_div[0];
+wire ce_x2 = 1;
 
 always @(posedge clk_sys) begin
 	reg last_hs_in;

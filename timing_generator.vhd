@@ -33,12 +33,12 @@ entity timing_generator is
     HIRES_MODE     : in std_logic;
     MIXED_MODE     : in std_logic;
     COL80          : in std_logic;
+    STORE80        : in std_logic;
     DHIRES_MODE    : in std_logic;
 
     VID7           : in std_logic;
 
     VIDEO_ADDRESS  : out unsigned(15 downto 0);
-    H0          : buffer std_logic;
     SEGA        : buffer std_logic;
     SEGB        : buffer std_logic;
     SEGC        : buffer std_logic;
@@ -46,7 +46,7 @@ entity timing_generator is
     GR2         : buffer std_logic;
     HBL	 	    : buffer std_logic;      -- Horizontal blanking
     VBL         : buffer std_logic;      -- Vertical blanking
-    BLANK          : out std_logic;         -- Composite blanking
+    BLANK          : out std_logic;      -- Composite blanking
     LDPS_N         : out std_logic
   );
 
@@ -61,7 +61,7 @@ architecture rtl of timing_generator is
   signal CLK_7M: std_logic;
   signal RAS_N_PRE, AX_PRE, CAS_N_PRE, Q3_PRE, PHI0_PRE, VID7M_PRE, LDPS_N_PRE: std_logic;
   signal RASRISE1 : std_logic;
-  signal VA, VB, VC, V2, V4, GR2_G, GR3: std_logic;
+  signal H0, VA, VB, VC, V2, V4, GR2_G, GR3: std_logic;
   signal HIRES : std_logic;
 
 begin
@@ -204,8 +204,8 @@ begin
                                (                     "000" & V(6));
   VIDEO_ADDRESS(9 downto 7) <= V(5 downto 3);
   VIDEO_ADDRESS(14 downto 10) <=
-    (             "00" & HBL & PAGE2 & not PAGE2) when HIRES = '0' else
-    (PAGE2 & not PAGE2 &  V(2 downto 0));
+    ("00" & HBL & (PAGE2 and not STORE80) & not (PAGE2 and not STORE80)) when HIRES = '0' else
+    (             (PAGE2 and not STORE80) & not (PAGE2 and not STORE80) &  V(2 downto 0));
 
   VIDEO_ADDRESS(15) <= '0'; 
 

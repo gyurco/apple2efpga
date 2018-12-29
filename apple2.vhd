@@ -18,18 +18,19 @@ entity apple2 is
     reset          : in  std_logic;
     cpu            : in  std_logic;              -- 0 - 6502, 1 - 65C02
     ADDR           : out unsigned(15 downto 0);  -- CPU address
-    ram_addr       : out unsigned(17 downto 0);  -- RAM address
+    ram_addr       : out unsigned(15 downto 0);  -- RAM address
     D              : out unsigned(7 downto 0);   -- Data to RAM
-    ram_do         : in unsigned(7 downto 0);    -- Data from RAM
+    ram_do         : in unsigned(15 downto 0);   -- Data from RAM (lo byte: MAIN RAM, hi byte: AUX RAM)
+    aux            : buffer std_logic;           -- Write to MAIN or AUX RAM
     PD             : in unsigned(7 downto 0);    -- Data to CPU from peripherals
     ram_we         : out std_logic;              -- RAM write enable
     VIDEO          : out std_logic;
     COLOR_LINE     : out std_logic;
     HBL            : out std_logic;
-    VBL            : out std_logic;
+    VBL            : buffer std_logic;
     K              : in unsigned(7 downto 0);    -- Keyboard data
-    READ_KEY       : out std_logic;              -- Processor has read key
-    AN             : out std_logic_vector(3 downto 0);  -- Annunciator outputs
+    READ_KEY       : buffer std_logic;              -- Processor has read key
+    AN             : buffer std_logic_vector(3 downto 0);  -- Annunciator outputs
     -- GAMEPORT input bits:
     --  7    6    5    4    3   2   1    0
     -- pdl3 pdl2 pdl1 pdl0 pb3 pb2 pb1 casette
@@ -54,9 +55,8 @@ architecture rtl of apple2 is
            reset_in: in std_logic;
            PAGE2, HIRES, RAMRD, RAMWRT, STORE80, ALTZP: in std_logic;
            addr: in std_logic_vector(15 downto 0);
-           video_addr: in std_logic_vector(15 downto 0);
-           ram_addr: out std_logic_vector(17 downto 0);
-           video_ram_addr: out std_logic_vector(17 downto 0);
+           ram_addr: out std_logic_vector(15 downto 0);
+           aux : out std_logic;
            we: in std_logic;  
            card_ram_we: out std_logic;
            card_ram_rd: out std_logic;
@@ -74,8 +74,7 @@ architecture rtl of apple2 is
   -- From the timing generator
   signal VIDEO_ADDRESS : unsigned(15 downto 0);
   signal LDPS_N : std_logic;
-  signal H0 : std_logic;
-  signal VBL_REG, BLANK, GR2 : std_logic;
+  signal BLANK, GR2 : std_logic;
   signal SEGA, SEGB, SEGC : std_logic;
 
   signal HIRES : std_logic;             -- from video generator B11 p6
@@ -88,6 +87,7 @@ architecture rtl of apple2 is
   signal PAGE2 : std_logic;
   signal HIRES_MODE : std_logic;
   signal DHIRES_MODE : std_logic;
+  signal BANK1 : std_logic;
 
   -- ][e auxilary switches
   signal RAMRD : std_logic;
@@ -95,10 +95,10 @@ architecture rtl of apple2 is
   signal CXROM : std_logic;
   signal STORE80 : std_logic;
   signal C3ROM : std_logic;
+  signal C8ROM : std_logic;
   signal ALTZP : std_logic;
   signal ALTCHAR : std_logic;
   signal COL80 : std_logic;
-  signal IOUDIS : std_logic;
   signal SF_D : std_logic;
 
   -- CPU signals
@@ -123,7 +123,6 @@ architecture rtl of apple2 is
   signal KEYBOARD_SELECT : std_logic := '0';
   signal SPEAKER_SELECT : std_logic;
   signal SOFTSWITCH_SELECT : std_logic;
-  signal SOFTSWITCH_RD_SELECT : std_logic;
   signal ROM_SELECT : std_logic;
   signal GAMEPORT_SELECT : std_logic;
   signal IO_STROBE : std_logic;
@@ -133,16 +132,17 @@ architecture rtl of apple2 is
   signal speaker_sig : std_logic := '0';        
 
   signal CPU_DL, VIDEO_DL : unsigned(7 downto 0);     -- Latched RAM data
+  signal VIDEO_DL_LATCH : unsigned(15 downto 0);
   
   -- ramcard
-  signal card_addr : unsigned(17 downto 0);
-  signal card_video_addr: unsigned(17 downto 0);
+  signal card_addr : unsigned(15 downto 0);
   signal card_ram_rd : std_logic;
   signal card_ram_we : std_logic;
   signal ram_card_read : std_logic;
   signal ram_card_write : std_logic;
 
   signal psg_irq_n : std_logic;
+  signal nmi_irq_n : std_logic;
   signal psg_do    : unsigned(7 downto 0);
   
   signal ioselect  : std_logic_vector(7 downto 0);
@@ -155,23 +155,24 @@ begin
   CLK_2M <= Q3;
   PRE_PHASE_ZERO <= PRE_PHASE_ZERO_sig;
 
-  ram_addr <= card_addr when PHASE_ZERO = '1' else card_video_addr;
+  ram_addr <= card_addr when PHASE_ZERO = '1' else VIDEO_ADDRESS;
   ram_we <= ((we and RAM_SELECT) or (we and ram_card_write)) when PHASE_ZERO = '1' else '0';
 
-  -- Latch RAM data on the rising edge of RAS
   RAM_data_latch : process (CLK_14M)
   begin
     if rising_edge(CLK_14M) then
---      if AX = '1' and CAS_N = '0' and RAS_N = '0' then
-      if AX = '0' and CAS_N = '0' and RAS_N = '0' and Q3 = '1' then
+      if AX = '0' and CAS_N = '1' and RAS_N = '0' and Q3 = '1' then
         if PHASE_ZERO = '0' then
-            VIDEO_DL <= ram_do;
+            VIDEO_DL_LATCH <= ram_do;
+        elsif aux = '0' then
+            CPU_DL <= ram_do(7 downto 0);
         else
-            CPU_DL <= ram_do;
+            CPU_DL <= ram_do(15 downto 8);
         end if;
       end if;
     end if;
   end process;
+  VIDEO_DL <= VIDEO_DL_LATCH(7 downto 0) when (COL80 = '0' and PHASE_ZERO = '0') or (COL80 = '1' and PHASE_ZERO = '1') else VIDEO_DL_LATCH(15 downto 8);
 
   ADDR <= A;
   D <= D_OUT;
@@ -184,7 +185,7 @@ begin
 --  rom_addr <= (A(13) and A(12)) & (not A(12)) & A(11 downto 0);
   rom_addr <= A(13 downto 0);
 
-  address_decoder: process (A, C3ROM, CXROM)
+  address_decoder: process (A, C3ROM, C8ROM, CXROM)
   begin
     ROM_SELECT <= '0';
     RAM_SELECT <= '0';
@@ -192,7 +193,6 @@ begin
     READ_KEY <= '0';
     SPEAKER_SELECT <= '0';
     SOFTSWITCH_SELECT <= '0';
-    SOFTSWITCH_RD_SELECT <= '0';
     GAMEPORT_SELECT <= '0';
     PDL_STROBE_REG <= '0';
     STB <= '0';
@@ -211,12 +211,7 @@ begin
                   when x"0" =>          -- C000 - C00F
                      KEYBOARD_SELECT <= '1';
                   when x"1" =>          -- C010 - C01F
-                     case A(3 downto 0) is
-                        when x"0" | x"1" | x"2" =>
-                           READ_KEY <= '1';
-                        when others =>
-                           SOFTSWITCH_RD_SELECT <= '1';
-                     end case;
+                     READ_KEY <= '1';
                   when x"3" =>          -- C030 - C03F
                     SPEAKER_SELECT <= '1';
                   when x"4" =>
@@ -247,7 +242,7 @@ begin
                 end if;
               when x"8" | x"9" | x"A" |  -- C800 - CFFF
                    x"B" | x"C" | x"D" | x"E" | x"F" =>
-                if CXROM = '1' then
+                if CXROM = '1' or C8ROM = '1' then
                   ROM_SELECT <= '1';
                 else
                   IO_STROBE <= '1';
@@ -277,7 +272,6 @@ begin
     if rising_edge(CLK_14M) then
       if SOFTSWITCH_SELECT = '1' then
         soft_switches(TO_INTEGER(A(3 downto 1))) <= A(0);
-        if IOUDIS = '0' and A(3 downto 1) = "111" then DHIRES_MODE <= A(0); end if;
       end if;
     end if;
   end process softswitches;
@@ -287,6 +281,7 @@ begin
   PAGE2 <= soft_switches(2);
   HIRES_MODE <= soft_switches(3);
   AN <= soft_switches(7 downto 4);
+  DHIRES_MODE <= AN(3);
 
   softswitches_IIe: process (CLK_14M, reset)
   begin
@@ -297,9 +292,15 @@ begin
       CXROM <= '0';
       ALTZP <= '0';
       C3ROM <= '0';
+      C8ROM <= '0';
       COL80 <= '0';
       ALTCHAR <= '0';
     elsif rising_edge(CLK_14M) then
+      if A(15 downto 8) = x"C3" and C3ROM = '0' then
+        C8ROM <= '1';
+      elsif A = x"CFFF" then
+        C8ROM <= '0';
+      end if;
       if CPU_EN_POST = '1' and KEYBOARD_SELECT = '1' and we = '1' then
         case A(3 downto 1) is
         when "000" => STORE80 <= A(0);
@@ -312,17 +313,17 @@ begin
         when "111" => ALTCHAR <= A(0);
         when others => null;
         end case;
-      elsif CPU_EN_POST = '1' and PDL_STROBE_REG = '1' and we = '1' then
-        if A(3 downto 1) = "111" then IOUDIS <= A(0); end if;
-      elsif SOFTSWITCH_RD_SELECT = '1' and we = '0' then
+      elsif READ_KEY = '1' and we = '0' then
         case A(3 downto 0) is
+        when x"1" => SF_D <= not BANK1;
+        when x"2" => SF_D <= card_ram_rd;
         when x"3" => SF_D <= RAMRD;
         when x"4" => SF_D <= RAMWRT;
         when x"5" => SF_D <= CXROM;
         when x"6" => SF_D <= ALTZP;
         when x"7" => SF_D <= C3ROM;
         when x"8" => SF_D <= STORE80;
-        when x"9" => SF_D <= not VBL_REG;
+        when x"9" => SF_D <= not VBL;
         when x"A" => SF_D <= TEXT_MODE;
         when x"B" => SF_D <= MIXED_MODE;
         when x"C" => SF_D <= PAGE2;
@@ -339,14 +340,12 @@ begin
 
   D_IN <= CPU_DL when RAM_SELECT = '1' or ram_card_read = '1' else  -- RAM
           K when KEYBOARD_SELECT = '1' else  -- Keyboard
-          SF_D & "0000000" when SOFTSWITCH_RD_SELECT = '1' else -- ][e softswitches
+          SF_D & K(6 downto 0) when READ_KEY = '1' else -- ][e softswitches
           GAMEPORT(TO_INTEGER(A(2 downto 0))) & "0000000"  -- Gameport
              when GAMEPORT_SELECT = '1' else
           rom_out when ROM_SELECT = '1' else  -- ROMs
-          psg_do when (devselect(4) = '1' or ioselect(4) = '1') and mb_enabled = '1' else
+          psg_do when ioselect(4) = '1' and mb_enabled = '1' else
           PD;                           -- Peripherals
-
-  VBL <= VBL_REG;
 
   timing : entity work.timing_generator port map (
     CLK_14M        => CLK_14M,
@@ -363,16 +362,16 @@ begin
     HIRES_MODE     => HIRES_MODE,
     MIXED_MODE     => MIXED_MODE,
     COL80          => COL80,
+    STORE80        => STORE80,
     DHIRES_MODE    => DHIRES_MODE,
     VID7           => VIDEO_DL(7),
     VIDEO_ADDRESS  => VIDEO_ADDRESS,
-    H0             => H0,
     SEGA           => SEGA,
     SEGB           => SEGB,
     SEGC           => SEGC,
     GR1            => COLOR_LINE,
     GR2            => GR2,
-    VBL            => VBL_REG,
+    VBL            => VBL,
     HBL            => HBL,
     BLANK          => BLANK,
     LDPS_N         => LDPS_N);
@@ -381,10 +380,10 @@ begin
     CLK_14M    => CLK_14M,
     CLK_7M     => CLK_7M,
     GR2        => GR2,
-    SEGA         => SEGA,
-    SEGB         => SEGB,
-    SEGC         => SEGC,
-    ALTCHAR      => ALTCHAR,
+    SEGA       => SEGA,
+    SEGB       => SEGB,
+    SEGC       => SEGC,
+    ALTCHAR    => ALTCHAR,
     BLANK      => BLANK,
     DL         => VIDEO_DL,
     LDPS_N     => LDPS_N,
@@ -413,7 +412,7 @@ begin
       res_n    => not reset,
 
       IRQ_n    => psg_irq_n,
-      NMI_n    => '1',
+      NMI_n    => nmi_irq_n,
       R_W_n    => T65_WE_N,
       A        => T65_A,
       DI       => T65_DI,
@@ -425,7 +424,7 @@ begin
         reset => not reset,
         clk => CLK_14M,
         enable => CPU_EN,
-        nmi_n => '1',
+        nmi_n => nmi_irq_n,
         irq_n => psg_irq_n,
         di => D_IN,
         do => R65C02_DO,
@@ -457,13 +456,12 @@ begin
       ALTZP => ALTZP,
       STORE80 => STORE80,
       addr => std_logic_vector(A),
-      video_addr => std_logic_vector(VIDEO_ADDRESS),
       unsigned(ram_addr) => card_addr,
-      unsigned(video_ram_addr) => card_video_addr,
+      aux => aux,
       we => we,
       card_ram_we => card_ram_we,
       card_ram_rd => card_ram_rd,
-      bank1 => open
+      bank1 => BANK1
     );
 
     ram_card_read  <= ROM_SELECT and card_ram_rd;
@@ -482,6 +480,7 @@ begin
       I_RW_L    => not we,
       I_IOSEL_L => not ioselect(4),
       O_IRQ_L   => psg_irq_n,
+      O_NMI_L   => nmi_irq_n,
       O_AUDIO_L => laudio,
       O_AUDIO_R => raudio
       );
