@@ -1,5 +1,8 @@
 -------------------------------------------------------------------------------
+-- Top level of an Apple //e
+-- Szombathelyi György
 --
+-- Based on:
 -- Top level of an Apple ][+
 --
 -- Stephen A. Edwards, sedwards@cs.columbia.edu
@@ -29,7 +32,8 @@ entity apple2 is
     HBL            : out std_logic;
     VBL            : buffer std_logic;
     K              : in unsigned(7 downto 0);    -- Keyboard data
-    READ_KEY       : buffer std_logic;              -- Processor has read key
+    READ_KEY       : buffer std_logic;           -- Processor has read key
+    AKD            : in std_logic;               -- Any key down flag
     AN             : buffer std_logic_vector(3 downto 0);  -- Annunciator outputs
     -- GAMEPORT input bits:
     --  7    6    5    4    3   2   1    0
@@ -315,6 +319,7 @@ begin
         end case;
       elsif READ_KEY = '1' and we = '0' then
         case A(3 downto 0) is
+        when x"0" => SF_D <= AKD;
         when x"1" => SF_D <= not BANK1;
         when x"2" => SF_D <= card_ram_rd;
         when x"3" => SF_D <= RAMRD;

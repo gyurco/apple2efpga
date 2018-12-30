@@ -291,6 +291,7 @@ architecture datapath of mist_top is
   
   signal K : unsigned(7 downto 0);
   signal read_key : std_logic;
+  signal akd : std_logic;
 
   signal flash_clk : unsigned(22 downto 0) := (others => '0');
   signal power_on_reset : std_logic := '1';
@@ -507,6 +508,7 @@ begin
     VBL            => VBL,
     K              => K,
     read_key       => read_key,
+    AKD            => akd,
     AN             => open,
     GAMEPORT       => GAMEPORT,
     PDL_strobe     => pdl_strobe,
@@ -543,8 +545,9 @@ begin
     PS2_Data => ps2Data,
     CLK_14M  => CLK_14M,
     reset    => reset,
-    reads     => read_key,
-    K        => K
+    reads    => read_key,
+    K        => K,
+    akd      => akd
     );
 
   disk : entity work.disk_ii port map (
