@@ -44,7 +44,8 @@ entity timing_generator is
     GR2         : buffer std_logic;
     HBL	 	    : buffer std_logic;      -- Horizontal blanking
     VBL         : buffer std_logic;      -- Vertical blanking
-    BLANK          : out std_logic;      -- Composite blanking
+    BLANK       : buffer std_logic;      -- Composite blanking
+    WNDW           : out std_logic;
     LDPS_N         : out std_logic
   );
 
@@ -131,6 +132,7 @@ begin
     begin
         if rising_edge(CLK_14M) then
             if RASRISE1 = '1' then
+                WNDW <= BLANK;
                 GR2 <= GR1;
                 GR1 <= not (TEXT_MODE or (V2 and V4 and MIXED_MODE));
             end if;

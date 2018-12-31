@@ -1,8 +1,8 @@
 -------------------------------------------------------------------------------
 --
--- 15 kHz TV output for Apple ][
+-- 15 kHz TV output for Apple //e
+-- Szombathelyi György
 --
--- by Szombathelyi GyÃ¶rgy
 -- based on vga_controller by
 -- Stephen A. Edwards, sedwards@cs.columbia.edu
 --
@@ -93,7 +93,6 @@ architecture rtl of tv_controller is
   signal hcount : unsigned(10 downto 0);
   signal vcount : unsigned(8 downto 0);
   signal hactive : std_logic;
-  signal hactive_shift_reg : std_logic_vector(15 downto 0) := (others => '0');
 
   constant VGA_SCANLINE : integer := 456*2; -- Must be 456*2 (set by the Apple)
   
@@ -143,13 +142,10 @@ begin
         VGA_HS_I <= '1';
       end if;
 
-      hactive_shift_reg <= hactive_shift_reg(14 downto 0) & hactive_shift_reg(0);
-      hactive <= hactive_shift_reg(15);
-
       if hcount = VGA_SCANLINE - 1 then
-        hactive_shift_reg(0) <= '1';
+        hactive <= '1';
       elsif hcount = VGA_ACTIVE then
-        hactive_shift_reg(0) <= '0';
+        hactive <= '0';
       end if;
     end if;
   end process hsync_gen;
@@ -199,7 +195,7 @@ begin
 				r := X"20"; g := X"08"; b := X"01"; -- amber mode background color
 		end case;
 		
-      if video_active = '1' then
+      --if video_active = '1' then
         
         if color_line_delayed_2 = '0' then  -- Monochrome mode
           
@@ -221,22 +217,22 @@ begin
           
           -- Tint of adjacent pixels is consistent : display the color
           
-          if shift_reg(3) = '1' then
+          if shift_reg(1) = '1' then
             r := r + basis_r(to_integer(hcount + 1));
             g := g + basis_g(to_integer(hcount + 1));
             b := b + basis_b(to_integer(hcount + 1));
           end if;
-          if shift_reg(4) = '1' then
+          if shift_reg(2) = '1' then
             r := r + basis_r(to_integer(hcount + 2));
             g := g + basis_g(to_integer(hcount + 2));
             b := b + basis_b(to_integer(hcount + 2));
           end if;
-          if shift_reg(1) = '1' then
+          if shift_reg(3) = '1' then
             r := r + basis_r(to_integer(hcount + 3));
             g := g + basis_g(to_integer(hcount + 3));
             b := b + basis_b(to_integer(hcount + 3));
           end if;
-          if shift_reg(2) = '1' then
+          if shift_reg(4) = '1' then
             r := r + basis_r(to_integer(hcount));
             g := g + basis_g(to_integer(hcount));
             b := b + basis_b(to_integer(hcount));
@@ -252,7 +248,7 @@ begin
           end case;
         end if;
         
-      end if;
+      --end if;
       
       VGA_R <= r;
       VGA_G <= g;

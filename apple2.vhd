@@ -64,7 +64,7 @@ architecture rtl of apple2 is
   -- From the timing generator
   signal VIDEO_ADDRESS : unsigned(15 downto 0);
   signal LDPS_N : std_logic;
-  signal BLANK, GR2 : std_logic;
+  signal WNDW, GR2 : std_logic;
   signal SEGA, SEGB, SEGC : std_logic;
   
   -- Soft switches
@@ -148,7 +148,8 @@ begin
   RAM_data_latch : process (CLK_14M)
   begin
     if rising_edge(CLK_14M) then
-      if AX = '0' and CAS_N = '1' and RAS_N = '0' and Q3 = '1' then
+      if AX = '1' and CAS_N = '0' and RAS_N = '1' and Q3 = '0' then
+        -- Latch video data at Phase 1, CPU data at Phase 0
         if PHASE_ZERO = '0' then
             VIDEO_DL_LATCH <= ram_do;
         elsif aux = '0' then
@@ -159,7 +160,7 @@ begin
       end if;
     end if;
   end process;
-  VIDEO_DL <= VIDEO_DL_LATCH(7 downto 0) when (COL80 = '0' and PHASE_ZERO = '0') or (COL80 = '1' and PHASE_ZERO = '1') else VIDEO_DL_LATCH(15 downto 8);
+  VIDEO_DL <= VIDEO_DL_LATCH(7 downto 0) when PHASE_ZERO = '0' else VIDEO_DL_LATCH(15 downto 8);
 
   ADDR <= A;
   D <= D_OUT;
@@ -407,7 +408,7 @@ begin
     GR2            => GR2,
     VBL            => VBL,
     HBL            => HBL,
-    BLANK          => BLANK,
+    WNDW           => WNDW,
     LDPS_N         => LDPS_N);
 
   video_display : entity work.video_generator port map (
@@ -418,7 +419,7 @@ begin
     SEGB       => SEGB,
     SEGC       => SEGC,
     ALTCHAR    => ALTCHAR,
-    BLANK      => BLANK,
+    WNDW       => WNDW,
     DL         => VIDEO_DL,
     LDPS_N     => LDPS_N,
     FLASH_CLK  => FLASH_CLK,
