@@ -30,8 +30,8 @@ entity MOCKINGBOARD is
     I_RESET_L         : in std_logic;
     I_ENA_H           : in std_logic;     
     
-    O_AUDIO_L         : out std_logic;
-    O_AUDIO_R         : out std_logic
+    O_AUDIO_L         : out std_logic_vector(9 downto 0);
+    O_AUDIO_R         : out std_logic_vector(9 downto 0)
     );
  end;
  
@@ -116,8 +116,8 @@ begin
       reset       => not I_RESET_L,
 
       addr        => I_ADDR(3 downto 0),
-      wen         => not I_RW_L and not I_ADDR(7) and not I_IOSEL_L,
-      ren         => I_RW_L and not I_ADDR(7) and not I_IOSEL_L,
+      wen         => not I_RW_L and not I_ADDR(7) and not I_IOSEL_L and I_ENA_H,
+      ren         => I_RW_L and not I_ADDR(7) and not I_IOSEL_L and I_ENA_H,
       data_in     => I_DATA,
       data_out    => o_data_l,
 
@@ -146,7 +146,7 @@ begin
   psg_left: YM2149
   port map (
     CLK         => CLK_14M,
-    CE          => PSG_EN,
+    CE          => PSG_EN and I_ENA_H,
     RESET       => not o_pb_l(2),
     BDIR        => o_pb_l(1),
     BC          => o_pb_l(0),
@@ -168,15 +168,7 @@ begin
     IOB_out     => open
     );
 
-  o_psg_ol <= std_logic_vector(unsigned("00" & o_psg_al) + unsigned("00" & o_psg_bl) + unsigned("00" & o_psg_cl));
-  
-  dac_l : work.dac
-    port map (
-      clk_i		=> CLK_14M,
-      res_n_i	=> I_RESET_L and I_ENA_H,
-      dac_i 	=> o_psg_ol(9 downto 2),
-      dac_o 	=> O_AUDIO_L
-      );
+  O_AUDIO_L <= std_logic_vector(unsigned("00" & o_psg_al) + unsigned("00" & o_psg_bl) + unsigned("00" & o_psg_cl));
 
 -- Right Channel Combo
   m6522_right : work.via6522
@@ -187,8 +179,8 @@ begin
       reset       => not I_RESET_L,
 
       addr        => I_ADDR(3 downto 0),
-      wen         => not I_RW_L and I_ADDR(7) and not I_IOSEL_L,
-      ren         => I_RW_L and I_ADDR(7) and not I_IOSEL_L,
+      wen         => not I_RW_L and I_ADDR(7) and not I_IOSEL_L and I_ENA_H,
+      ren         => I_RW_L and I_ADDR(7) and not I_IOSEL_L and I_ENA_H,
       data_in     => I_DATA,
       data_out    => o_data_r,
 
@@ -217,7 +209,7 @@ begin
   psg_right: YM2149
   port map (
     CLK         => CLK_14M,
-    CE          => PSG_EN,
+    CE          => PSG_EN and I_ENA_H,
     RESET       => not o_pb_r(2),
     BDIR        => o_pb_r(1),
     BC          => o_pb_r(0),
@@ -239,14 +231,7 @@ begin
     IOB_out     => open
     );
 
-  o_psg_or <= std_logic_vector(unsigned("00" & o_psg_ar) + unsigned("00" & o_psg_br) + unsigned("00" & o_psg_cr));
+  O_AUDIO_R <= std_logic_vector(unsigned("00" & o_psg_ar) + unsigned("00" & o_psg_br) + unsigned("00" & o_psg_cr));
 
-  dac_r : work.dac
-    port map (
-      clk_i		=> CLK_14M,
-      res_n_i	=> I_RESET_L and I_ENA_H,
-      dac_i 	=> o_psg_or(9 downto 2),
-      dac_o 	=> O_AUDIO_R
-      );
 
 end architecture RTL;

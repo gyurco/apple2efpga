@@ -250,13 +250,16 @@ architecture datapath of mist_top is
     );
   end component;
 
-  signal CLK_28M, CLK_14M, CLK_2M, CLK_2M_D, PRE_PHASE_ZERO : std_logic;
+  signal CLK_28M, CLK_14M, CLK_2M, CLK_2M_D, PHASE_ZERO : std_logic;
   signal clk_div : unsigned(1 downto 0);
   signal IO_SELECT, DEVICE_SELECT : std_logic_vector(7 downto 0);
   signal ADDR : unsigned(15 downto 0);
   signal D, PD: unsigned(7 downto 0);
+  signal DISK_DO, PSG_DO : unsigned(7 downto 0);
   signal DO : std_logic_vector(15 downto 0);
   signal aux : std_logic;
+  signal cpu_we : std_logic;
+  signal psg_irq_n, psg_nmi_n : std_logic;
 
   signal we_ram : std_logic;
   signal VIDEO, HBL, VBL : std_logic;
@@ -305,15 +308,11 @@ architecture datapath of mist_top is
   signal D1_ACTIVE, D2_ACTIVE : std_logic;
   signal track_addr : unsigned(13 downto 0);
   signal TRACK_RAM_ADDR : unsigned(12 downto 0);
-  signal tra : unsigned(15 downto 0);
   signal TRACK_RAM_DI : unsigned(7 downto 0);
   signal TRACK_RAM_WE : std_logic;
   signal track : unsigned(5 downto 0);
-  signal image : unsigned(9 downto 0);
   signal disk_change : std_logic;
 
-  signal CS_N, MOSI, MISO, SCLK : std_logic;
-  
   signal downl : std_logic := '0';
   signal io_index : std_logic_vector(4 downto 0);
   signal size : std_logic_vector(24 downto 0) := (others=>'0');
@@ -350,10 +349,11 @@ architecture datapath of mist_top is
   signal status     : std_logic_vector(31 downto 0);
   signal ps2Clk     : std_logic;
   signal ps2Data    : std_logic;
-  signal audio      : std_logic;
-  signal audiol     : std_logic;
-  signal audior     : std_logic;
   
+  signal psg_audio_l : unsigned(9 downto 0);
+  signal psg_audio_r : unsigned(9 downto 0);
+  signal audio       : std_logic;
+
   -- signals to connect sd card emulation with io controller
   signal sd_lba:  std_logic_vector(31 downto 0);
   signal sd_rd:   std_logic;
@@ -491,11 +491,13 @@ begin
   ram_we   <= we_ram when status(7) = '0' else '1';
   ram_addr <= "000000000" & std_logic_vector(a_ram) when status(7) = '0' else std_logic_vector(to_unsigned(1012,ram_addr'length)); -- $3F4
   ram_di   <= std_logic_vector(D) when status(7) = '0' else "00000000";
-  
+
+  PD <= PSG_DO when IO_SELECT(4) = '1' else DISK_DO;
+
   core : entity work.apple2 port map (
     CLK_14M        => CLK_14M,
     CLK_2M         => CLK_2M,
-    PRE_PHASE_ZERO => PRE_PHASE_ZERO,
+    PHASE_ZERO     => PHASE_ZERO,
     FLASH_CLK      => flash_clk(22),
     reset          => reset,
     cpu            => status(1),
@@ -505,6 +507,9 @@ begin
     ram_do         => unsigned(DO),
     aux            => aux,
     PD             => PD,
+    CPU_WE         => cpu_we,
+    IRQ_N          => psg_irq_n,
+    NMI_N          => psg_nmi_n,
     ram_we         => we_ram,
     VIDEO          => VIDEO,
     COLOR_LINE     => COLOR_LINE,
@@ -519,14 +524,8 @@ begin
     IO_SELECT      => IO_SELECT,
     DEVICE_SELECT  => DEVICE_SELECT,
     pcDebugOut     => cpu_pc,
-    speaker        => audio,
-    laudio         => audiol,
-    raudio         => audior,
-    mb_enabled     => status(6)
+    speaker        => audio
     );
-    
-  AUDIO_L <= audiol or audio;
-  AUDIO_R <= audior or audio;
 
   tv : entity work.tv_controller port map (
     CLK_14M    => CLK_14M,
@@ -557,13 +556,13 @@ begin
   disk : entity work.disk_ii port map (
     CLK_14M        => CLK_14M,
     CLK_2M         => CLK_2M,
-    PRE_PHASE_ZERO => PRE_PHASE_ZERO,
+    PHASE_ZERO     => PHASE_ZERO,
     IO_SELECT      => IO_SELECT(6),
     DEVICE_SELECT  => DEVICE_SELECT(6),
     RESET          => reset,
     A              => ADDR,
     D_IN           => D,
-    D_OUT          => PD,
+    D_OUT          => DISK_DO,
     TRACK          => TRACK,
     TRACK_ADDR     => TRACK_ADDR,
     D1_ACTIVE      => D1_ACTIVE,
@@ -599,6 +598,42 @@ begin
   );
 
   --LED <= not D1_ACTIVE;
+
+  mb : work.mockingboard
+    port map (
+      CLK_14M    => CLK_14M,
+      PHASE_ZERO => PHASE_ZERO,
+      I_RESET_L => not reset,
+      I_ENA_H   => status(6),
+
+      I_ADDR    => std_logic_vector(ADDR)(7 downto 0),
+      I_DATA    => std_logic_vector(D),
+      unsigned(O_DATA)    => PSG_DO,
+      I_RW_L    => not cpu_we,
+      I_IOSEL_L => not IO_SELECT(4),
+      O_IRQ_L   => psg_irq_n,
+      O_NMI_L   => psg_nmi_n,
+      unsigned(O_AUDIO_L) => psg_audio_l,
+      unsigned(O_AUDIO_R) => psg_audio_r
+      );
+
+  dac_l : work.dac
+    generic map(9)
+    port map (
+      clk_i		=> CLK_14M,
+      res_n_i	=> not reset,
+      dac_i 	=> std_logic_vector(psg_audio_l + (audio & "0000000")),
+      dac_o 	=> AUDIO_L
+      );
+
+  dac_r : work.dac
+    generic map(9)
+    port map (
+      clk_i		=> CLK_14M,
+      res_n_i	=> not reset,
+      dac_i 	=> std_logic_vector(psg_audio_r + (audio & "0000000")),
+      dac_o 	=> AUDIO_R
+      );
 
   user_io_d : user_io
     generic map (STRLEN => CONF_STR'length)

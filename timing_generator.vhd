@@ -24,7 +24,6 @@ entity timing_generator is
     CAS_N          : buffer std_logic := '0';
     AX             : buffer std_logic := '0';
     PHI0           : buffer std_logic := '0'; -- 1.0 MHz processor clock
-    PRE_PHI0       : buffer std_logic := '0'; -- One 14M cycle before
     COLOR_REF      : buffer std_logic := '0'; -- 3.579545 MHz colorburst
 
     TEXT_MODE      : in std_logic;
@@ -64,7 +63,6 @@ architecture rtl of timing_generator is
   signal HIRES : std_logic;
 
 begin
-    PRE_PHI0 <= PHI0_PRE;
     RASRISE1 <= '1' when RAS_N = '1' and PHI0 = '0' and Q3 ='0' else '0';
     GR2_G <= GR2 and DHIRES_MODE;
 

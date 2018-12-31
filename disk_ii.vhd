@@ -70,7 +70,7 @@ entity disk_ii is
   port (
     CLK_14M        : in std_logic;
     CLK_2M         : in std_logic;   
-    PRE_PHASE_ZERO : in std_logic;
+    PHASE_ZERO     : in std_logic;
     IO_SELECT      : in std_logic;      -- e.g., C600 - C6FF ROM
     DEVICE_SELECT  : in std_logic;      -- e.g., C0E0 - C0EF I/O locations
     RESET          : in std_logic;
@@ -261,7 +261,7 @@ begin
       CLK_2M_D <= CLK_2M;
       if CLK_2M = '1' and CLK_2M_D = '0' then
         byte_delay := byte_delay - 1;
-        if (read_disk = '1' and PRE_PHASE_ZERO = '1') or byte_delay = 0 then
+        if (read_disk = '1' and PHASE_ZERO = '1') or byte_delay = 0 then
           byte_delay := (others => '0');
           if track_byte_addr = X"33FE" then
             track_byte_addr <= (others => '0');

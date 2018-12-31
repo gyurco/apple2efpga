@@ -16,7 +16,7 @@ entity apple2 is
   port (
     CLK_14M        : in  std_logic;              -- 14.31818 MHz master clock
     CLK_2M         : out std_logic;
-    PRE_PHASE_ZERO : out std_logic;
+    PHASE_ZERO     : buffer std_logic;
     FLASH_CLK      : in  std_logic;        -- approx. 2 Hz flashing char clock
     reset          : in  std_logic;
     cpu            : in  std_logic;              -- 0 - 6502, 1 - 65C02
@@ -26,6 +26,9 @@ entity apple2 is
     ram_do         : in unsigned(15 downto 0);   -- Data from RAM (lo byte: MAIN RAM, hi byte: AUX RAM)
     aux            : buffer std_logic;           -- Write to MAIN or AUX RAM
     PD             : in unsigned(7 downto 0);    -- Data to CPU from peripherals
+    CPU_WE         : out std_logic;
+    IRQ_n          : in std_logic;
+    NMI_n          : in std_logic;
     ram_we         : out std_logic;              -- RAM write enable
     VIDEO          : out std_logic;
     COLOR_LINE     : out std_logic;
@@ -45,9 +48,6 @@ entity apple2 is
     DEVICE_SELECT  : out std_logic_vector(7 downto 0);
     pcDebugOut     : out unsigned(15 downto 0);
     opcodeDebugOut : out unsigned(7 downto 0);
-    laudio         : out std_logic;
-    raudio         : out std_logic;
-    mb_enabled     : in std_logic;
     speaker        : out std_logic              -- One-bit speaker output
     );
 end apple2;
@@ -57,7 +57,7 @@ architecture rtl of apple2 is
   -- Clocks
   signal CLK_7M : std_logic;
   signal Q3, RAS_N, CAS_N, AX : std_logic;
-  signal PHASE_ZERO, PHASE_ZERO_D, PRE_PHASE_ZERO_sig : std_logic;
+  signal PHASE_ZERO_D : std_logic;
   signal COLOR_REF : std_logic;
   signal CPU_EN, CPU_EN_POST : std_logic;
 
@@ -132,10 +132,6 @@ architecture rtl of apple2 is
   signal HRAM_READ_EN : std_logic;
   signal HRAM_WRITE_EN : std_logic;
 
-  signal psg_irq_n : std_logic;
-  signal nmi_irq_n : std_logic;
-  signal psg_do    : unsigned(7 downto 0);
-  
   signal ioselect  : std_logic_vector(7 downto 0);
   signal devselect : std_logic_vector(7 downto 0);
   
@@ -144,10 +140,10 @@ architecture rtl of apple2 is
 begin
 
   CLK_2M <= Q3;
-  PRE_PHASE_ZERO <= PRE_PHASE_ZERO_sig;
 
   ram_addr <= CPU_RAM_ADDR when PHASE_ZERO = '1' else VIDEO_ADDRESS;
   ram_we <= ((we and RAM_SELECT) or (we and HRAM_WRITE_EN)) when PHASE_ZERO = '1' else '0';
+  CPU_WE <= we;
 
   RAM_data_latch : process (CLK_14M)
   begin
@@ -384,7 +380,6 @@ begin
           VIDEO_DL when TAPE_OUT = '1' or SPEAKER_SELECT = '1' or STB = '1' or
                         SOFTSWITCH_SELECT = '1' or PDL_STROBE = '1' or
                         HRAM_CONTROL = '1' or A = x"CFFF" else  -- Floating bus
-          psg_do when ioselect(4) = '1' and mb_enabled = '1' else
           PD;                           -- Peripherals
 
   timing : entity work.timing_generator port map (
@@ -395,7 +390,6 @@ begin
     Q3	           => Q3,
     AX             => AX,
     PHI0           => PHASE_ZERO,
-    PRE_PHI0       => PRE_PHASE_ZERO_sig,
     COLOR_REF      => COLOR_REF,
     TEXT_MODE      => TEXT_MODE,
     PAGE2          => PAGE2,
@@ -451,8 +445,8 @@ begin
       enable   => CPU_EN,
       res_n    => not reset,
 
-      IRQ_n    => psg_irq_n,
-      NMI_n    => nmi_irq_n,
+      IRQ_n    => IRQ_N,
+      NMI_n    => NMI_N,
       R_W_n    => T65_WE_N,
       A        => T65_A,
       DI       => T65_DI,
@@ -464,8 +458,8 @@ begin
         reset => not reset,
         clk => CLK_14M,
         enable => CPU_EN,
-        nmi_n => nmi_irq_n,
-        irq_n => psg_irq_n,
+        nmi_n => NMI_N,
+        irq_n => IRQ_N,
         di => D_IN,
         do => R65C02_DO,
         addr => R65C02_A,
@@ -483,22 +477,4 @@ begin
    wren => '0',
    unsigned(q) => rom_out);
 
-  mb : work.mockingboard
-    port map (
-      CLK_14M    => CLK_14M,
-      PHASE_ZERO => PHASE_ZERO,
-      I_RESET_L => not reset,
-      I_ENA_H   => mb_enabled,
-      
-      I_ADDR    => std_logic_vector(A)(7 downto 0),
-      I_DATA    => std_logic_vector(D_OUT),
-      unsigned(O_DATA)    => psg_do,
-      I_RW_L    => not we,
-      I_IOSEL_L => not ioselect(4),
-      O_IRQ_L   => psg_irq_n,
-      O_NMI_L   => nmi_irq_n,
-      O_AUDIO_L => laudio,
-      O_AUDIO_R => raudio
-      );
-    
 end rtl;
