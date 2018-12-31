@@ -39,8 +39,8 @@ entity apple2 is
     --  7    6    5    4    3   2   1    0
     -- pdl3 pdl2 pdl1 pdl0 pb3 pb2 pb1 casette
     GAMEPORT       : in std_logic_vector(7 downto 0);
-    PDL_STROBE     : out std_logic;         -- Pulses high when C07x read
-    STB            : out std_logic;         -- Pulses high when C04x read
+    PDL_STROBE     : buffer std_logic;           -- Pulses high when C07x read
+    STB            : buffer std_logic;           -- Pulses high when C04x read
     IO_SELECT      : out std_logic_vector(7 downto 0);
     DEVICE_SELECT  : out std_logic_vector(7 downto 0);
     pcDebugOut     : out unsigned(15 downto 0);
@@ -125,12 +125,13 @@ architecture rtl of apple2 is
   -- Address decoder signals
   signal RAM_SELECT : std_logic := '1';
   signal KEYBOARD_SELECT : std_logic := '0';
+  signal TAPE_OUT : std_logic;
   signal SPEAKER_SELECT : std_logic;
   signal SOFTSWITCH_SELECT : std_logic;
   signal ROM_SELECT : std_logic;
   signal GAMEPORT_SELECT : std_logic;
   signal IO_STROBE : std_logic;
-  signal PDL_STROBE_REG : std_logic;
+  signal HRAM_CONTROL : std_logic;
 
   -- Speaker signal
   signal speaker_sig : std_logic := '0';        
@@ -183,7 +184,6 @@ begin
 
   IO_SELECT <= ioselect;
   DEVICE_SELECT <= devselect;
-  PDL_STROBE <= PDL_STROBE_REG;
 
   -- Address decoding
 --  rom_addr <= (A(13) and A(12)) & (not A(12)) & A(11 downto 0);
@@ -195,11 +195,13 @@ begin
     RAM_SELECT <= '0';
     KEYBOARD_SELECT <= '0';
     READ_KEY <= '0';
+    TAPE_OUT <= '0';
     SPEAKER_SELECT <= '0';
     SOFTSWITCH_SELECT <= '0';
     GAMEPORT_SELECT <= '0';
-    PDL_STROBE_REG <= '0';
+    PDL_STROBE <= '0';
     STB <= '0';
+    HRAM_CONTROL <= '0';
     ioselect <= (others => '0');
     devselect <= (others => '0');
     IO_STROBE <= '0';
@@ -216,18 +218,22 @@ begin
                      KEYBOARD_SELECT <= '1';
                   when x"1" =>          -- C010 - C01F
                      READ_KEY <= '1';
+                  when x"2" =>          -- C020 - C02F
+                    TAPE_OUT <= '1';
                   when x"3" =>          -- C030 - C03F
                     SPEAKER_SELECT <= '1';
-                  when x"4" =>
+                  when x"4" =>          -- C040 - C04F
                     STB <= '1';
                   when x"5" =>          -- C050 - C05F
                     SOFTSWITCH_SELECT <= '1';
                   when x"6" =>          -- C060 - C06F
                     GAMEPORT_SELECT <= '1';
                   when x"7" =>          -- C070 - C07F
-                    PDL_STROBE_REG <= '1';
-                  when x"8" | x"9" | x"A" |  -- C080 - C0FF
-                       x"B" | x"C" | x"D" | x"E" | x"F" =>
+                    PDL_STROBE <= '1';
+                  when x"8" =>          -- C080 - C08F
+                    HRAM_CONTROL <= '1';
+                  when x"9" | x"A" | x"B" | -- C090 - C0FF
+                       x"C" | x"D" | x"E" | x"F" =>
                     devselect(TO_INTEGER(A(6 downto 4))) <= '1';
                   when others => null;                
                 end case;
@@ -274,7 +280,7 @@ begin
   softswitches: process (CLK_14M)
   begin
     if rising_edge(CLK_14M) then
-      if SOFTSWITCH_SELECT = '1' then
+      if CPU_EN_POST = '1' and SOFTSWITCH_SELECT = '1' then
         soft_switches(TO_INTEGER(A(3 downto 1))) <= A(0);
       end if;
     end if;
@@ -346,9 +352,12 @@ begin
   D_IN <= CPU_DL when RAM_SELECT = '1' or ram_card_read = '1' else  -- RAM
           K when KEYBOARD_SELECT = '1' else  -- Keyboard
           SF_D & K(6 downto 0) when READ_KEY = '1' else -- ][e softswitches
-          GAMEPORT(TO_INTEGER(A(2 downto 0))) & "0000000"  -- Gameport
+          GAMEPORT(TO_INTEGER(A(2 downto 0))) & VIDEO_DL(6 downto 0)  -- Gameport
              when GAMEPORT_SELECT = '1' else
           rom_out when ROM_SELECT = '1' else  -- ROMs
+          VIDEO_DL when TAPE_OUT = '1' or SPEAKER_SELECT = '1' or STB = '1' or
+                        SOFTSWITCH_SELECT = '1' or PDL_STROBE = '1' or
+                        HRAM_CONTROL = '1' or A = x"CFFF" else  -- Floating bus
           psg_do when ioselect(4) = '1' and mb_enabled = '1' else
           PD;                           -- Peripherals
 
