@@ -58,7 +58,7 @@ set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION ON
 set_global_assignment -name GENERATE_RBF_FILE ON
 
 set_global_assignment -name SMART_RECOMPILE ON
-set_global_assignment -name ENABLE_DRC_SETTINGS ON
+set_global_assignment -name ENABLE_DRC_SETTINGS OFF
 set_global_assignment -name ENABLE_CLOCK_LATENCY ON
 set_global_assignment -name ENABLE_RECOVERY_REMOVAL_ANALYSIS ON
 set_global_assignment -name IGNORE_LCELL_BUFFERS ON
@@ -322,6 +322,7 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_HS
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_VS
 set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
 set_global_assignment -name SEED 1
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
 set_global_assignment -name VHDL_FILE mist_top.vhd
 set_global_assignment -name VERILOG_FILE scandoubler.v
 set_global_assignment -name SYSTEMVERILOG_FILE rgb2ypbpr.sv
@@ -338,7 +339,6 @@ set_global_assignment -name VHDL_FILE ../tv_controller.vhd
 set_global_assignment -name VHDL_FILE ../timing_generator.vhd
 set_global_assignment -name VHDL_FILE ../spram.vhd
 set_global_assignment -name VHDL_FILE ../PS2_Ctrl.vhd
-set_global_assignment -name VERILOG_FILE ../ramcard.v
 set_global_assignment -name VHDL_FILE ../keyboard.vhd
 set_global_assignment -name VHDL_FILE ../disk_ii_rom.vhd
 set_global_assignment -name VHDL_FILE ../disk_ii.vhd
@@ -353,4 +353,4 @@ set_global_assignment -name SIGNALTAP_FILE out/ram.stp
 set_global_assignment -name SIGNALTAP_FILE out/cpu.stp
 set_global_assignment -name SIGNALTAP_FILE out/joy.stp
 set_global_assignment -name SIGNALTAP_FILE out/timing.stp
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+set_global_assignment -name SIGNALTAP_FILE out/keyb.stp

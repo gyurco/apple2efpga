@@ -54,20 +54,6 @@ end apple2;
 
 architecture rtl of apple2 is
 
-  component ramcard is
-    port ( mclk28: in std_logic;
-           reset_in: in std_logic;
-           PAGE2, HIRES, RAMRD, RAMWRT, STORE80, ALTZP: in std_logic;
-           addr: in std_logic_vector(15 downto 0);
-           ram_addr: out std_logic_vector(15 downto 0);
-           aux : out std_logic;
-           we: in std_logic;  
-           card_ram_we: out std_logic;
-           card_ram_rd: out std_logic;
-           bank1: out std_logic
-    );
-  end component;
-  
   -- Clocks
   signal CLK_7M : std_logic;
   signal Q3, RAS_N, CAS_N, AX : std_logic;
@@ -80,9 +66,6 @@ architecture rtl of apple2 is
   signal LDPS_N : std_logic;
   signal BLANK, GR2 : std_logic;
   signal SEGA, SEGB, SEGC : std_logic;
-
-  signal HIRES : std_logic;             -- from video generator B11 p6
-  signal DHIRES : std_logic;
   
   -- Soft switches
   signal soft_switches : std_logic_vector(7 downto 0) := "00000000";
@@ -91,7 +74,6 @@ architecture rtl of apple2 is
   signal PAGE2 : std_logic;
   signal HIRES_MODE : std_logic;
   signal DHIRES_MODE : std_logic;
-  signal BANK1 : std_logic;
 
   -- ][e auxilary switches
   signal RAMRD : std_logic;
@@ -139,12 +121,16 @@ architecture rtl of apple2 is
   signal CPU_DL, VIDEO_DL : unsigned(7 downto 0);     -- Latched RAM data
   signal VIDEO_DL_LATCH : unsigned(15 downto 0);
   
-  -- ramcard
-  signal card_addr : unsigned(15 downto 0);
-  signal card_ram_rd : std_logic;
-  signal card_ram_we : std_logic;
-  signal ram_card_read : std_logic;
-  signal ram_card_write : std_logic;
+  -- Bank Switched RAM signals
+  signal Dxxx : std_logic;
+  signal HRAM_READ : std_logic;
+  signal HRAM_PRE_WR : std_logic;
+  signal HRAM_WR_N : std_logic;
+  signal HRAM_BANK1 : std_logic;
+  signal CPU_RAM_ADDR : unsigned(15 downto 0);
+
+  signal HRAM_READ_EN : std_logic;
+  signal HRAM_WRITE_EN : std_logic;
 
   signal psg_irq_n : std_logic;
   signal nmi_irq_n : std_logic;
@@ -160,8 +146,8 @@ begin
   CLK_2M <= Q3;
   PRE_PHASE_ZERO <= PRE_PHASE_ZERO_sig;
 
-  ram_addr <= card_addr when PHASE_ZERO = '1' else VIDEO_ADDRESS;
-  ram_we <= ((we and RAM_SELECT) or (we and ram_card_write)) when PHASE_ZERO = '1' else '0';
+  ram_addr <= CPU_RAM_ADDR when PHASE_ZERO = '1' else VIDEO_ADDRESS;
+  ram_we <= ((we and RAM_SELECT) or (we and HRAM_WRITE_EN)) when PHASE_ZERO = '1' else '0';
 
   RAM_data_latch : process (CLK_14M)
   begin
@@ -268,6 +254,20 @@ begin
     end case;        
   end process address_decoder;
 
+  aux_ctrl: process(A, we, RAMRD, RAMWRT, STORE80, HIRES_MODE, PAGE2, ALTZP)
+  begin
+    aux <= '0';
+    if A(15 downto 9) = "0000000" or A(15 downto 14) = "11" then -- Page 00,01,C0-FF
+        aux <= ALTZP;
+    elsif A(15 downto 10) = "000001" then -- Page 04-07
+        aux <= (STORE80 and PAGE2) or (not STORE80 and (( RAMRD and not we ) or ( RAMWRT and we)));
+    elsif A(15 downto 13) = "001" then -- Page 20-3F
+        aux <= (STORE80 and PAGE2 and HIRES_MODE) or ((not STORE80 or not HIRES_MODE) and (( RAMRD and not we ) or ( RAMWRT and we)));
+    else
+        aux <= ( RAMRD and not we ) or ( RAMWRT and we);
+    end if;
+  end process aux_ctrl;
+
   speaker_ctrl: process (CLK_14M)
   begin
     if rising_edge(CLK_14M) then
@@ -292,6 +292,32 @@ begin
   HIRES_MODE <= soft_switches(3);
   AN <= soft_switches(7 downto 4);
   DHIRES_MODE <= AN(3);
+
+  hram_ctrl: process (CLK_14M, reset)
+  begin
+    if reset = '1' then
+        HRAM_PRE_WR <= '0';
+        HRAM_READ <= '0';
+        HRAM_WR_N <= '0';
+        HRAM_BANK1 <= '0';
+    elsif rising_edge(CLK_14M) then
+      if CPU_EN_POST = '1' and HRAM_CONTROL = '1' then
+        HRAM_BANK1 <= A(3);
+        HRAM_PRE_WR <= A(0) and not we;
+        if (HRAM_PRE_WR and not we and A(0)) = '1' then
+            HRAM_WR_N <= '0';
+        elsif A(0) = '0' then
+            HRAM_WR_N <= '1';
+        end if;
+        HRAM_READ <= not (A(0) xor A(1));
+      end if;
+    end if;
+  end process hram_ctrl;
+
+  Dxxx <= '1' when A(15 downto 12) = x"D" else '0';
+  CPU_RAM_ADDR <= A(15 downto 13) & (A(12) and not (HRAM_BANK1 and Dxxx)) & A(11 downto 0);
+  HRAM_READ_EN <= HRAM_READ and A(15) and A(14) and (A(13) or A(12)); -- Dxxx-Fxxx
+  HRAM_WRITE_EN <= not HRAM_WR_N and A(15) and A(14) and (A(13) or A(12)); -- Dxxx-Fxxx
 
   softswitches_IIe: process (CLK_14M, reset)
   begin
@@ -326,8 +352,8 @@ begin
       elsif READ_KEY = '1' and we = '0' then
         case A(3 downto 0) is
         when x"0" => SF_D <= AKD;
-        when x"1" => SF_D <= not BANK1;
-        when x"2" => SF_D <= card_ram_rd;
+        when x"1" => SF_D <= not HRAM_BANK1;
+        when x"2" => SF_D <= HRAM_READ;
         when x"3" => SF_D <= RAMRD;
         when x"4" => SF_D <= RAMWRT;
         when x"5" => SF_D <= CXROM;
@@ -349,7 +375,7 @@ begin
 
   speaker <= speaker_sig;
 
-  D_IN <= CPU_DL when RAM_SELECT = '1' or ram_card_read = '1' else  -- RAM
+  D_IN <= CPU_DL when RAM_SELECT = '1' or HRAM_READ_EN = '1' else  -- RAM
           K when KEYBOARD_SELECT = '1' else  -- Keyboard
           SF_D & K(6 downto 0) when READ_KEY = '1' else -- ][e softswitches
           GAMEPORT(TO_INTEGER(A(2 downto 0))) & VIDEO_DL(6 downto 0)  -- Gameport
@@ -456,31 +482,7 @@ begin
    data => (others=>'0'),
    wren => '0',
    unsigned(q) => rom_out);
-    
-  -- ramcard  
-  ram_card_D: component ramcard
-    port map
-    (
-      mclk28 => CLK_14M,
-      reset_in => reset,
-      PAGE2 => PAGE2,
-      HIRES => HIRES_MODE,
-      RAMRD => RAMRD,
-      RAMWRT => RAMWRT,
-      ALTZP => ALTZP,
-      STORE80 => STORE80,
-      addr => std_logic_vector(A),
-      unsigned(ram_addr) => card_addr,
-      aux => aux,
-      we => we,
-      card_ram_we => card_ram_we,
-      card_ram_rd => card_ram_rd,
-      bank1 => BANK1
-    );
 
-    ram_card_read  <= ROM_SELECT and card_ram_rd;
-    ram_card_write <= ROM_SELECT and card_ram_we;
-    
   mb : work.mockingboard
     port map (
       CLK_14M    => CLK_14M,
