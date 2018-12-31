@@ -66,6 +66,10 @@ entity mist_top is
     AUDIO_L,
     AUDIO_R : out std_logic;
     
+    -- UART
+
+    UART_RX : in std_logic;
+
     -- LEDG
     LED : out std_logic
 
@@ -415,7 +419,7 @@ begin
   -- GAMEPORT input bits:
   --  7    6    5    4    3   2   1    0
   -- pdl3 pdl2 pdl1 pdl0 pb3 pb2 pb1 casette
-  GAMEPORT <=  "00" & joyy & joyx & "0" & joy(5) & joy(4) & "0";
+  GAMEPORT <=  "00" & joyy & joyx & "0" & joy(5) & joy(4) & UART_RX;
   
   joy_an <= joy_an0 when status(5)='0' else joy_an1;
   joy <= joy0 when status(5)='0' else joy1;
