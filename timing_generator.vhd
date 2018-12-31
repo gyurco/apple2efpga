@@ -1,13 +1,12 @@
 -------------------------------------------------------------------------------
 --
--- Apple II/e Timing logic
+-- Apple //e Timing logic
+-- Szombathelyi György
 --
--- György Szombathelyi
---
--- original Apple ][+ timing logic by:
+-- Based on original Apple ][+ timing logic by:
 -- Stephen A. Edwards, sedwards@cs.columbia.edu
 --
--- Based on the book Understanding the Apple IIe by Jim Sather
+-- Following the schematics of the book Understanding the Apple IIe by Jim Sather
 --
 -------------------------------------------------------------------------------
 
@@ -61,7 +60,7 @@ architecture rtl of timing_generator is
   signal CLK_7M: std_logic;
   signal RAS_N_PRE, AX_PRE, CAS_N_PRE, Q3_PRE, PHI0_PRE, VID7M_PRE, LDPS_N_PRE: std_logic;
   signal RASRISE1 : std_logic;
-  signal H0, VA, VB, VC, V2, V4, GR2_G, GR3: std_logic;
+  signal H0, VA, VB, VC, V2, V4, GR2_G: std_logic;
   signal HIRES : std_logic;
 
 begin
@@ -134,14 +133,13 @@ begin
     begin
         if rising_edge(CLK_14M) then
             if RASRISE1 = '1' then
-                GR3 <= GR2;
                 GR2 <= GR1;
                 GR1 <= not (TEXT_MODE or (V2 and V4 and MIXED_MODE));
             end if;
         end if;
     end process;
 
-    HIRES <= HIRES_MODE and GR3;
+    HIRES <= HIRES_MODE and GR2;
 
     process (CLK_14M)
     begin
