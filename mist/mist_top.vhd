@@ -267,7 +267,6 @@ architecture datapath of mist_top is
   signal COLOR_LINE_CONTROL : std_logic;
   signal SCREEN_MODE : std_logic_vector(1 downto 0);
   signal GAMEPORT : std_logic_vector(7 downto 0);
-  signal cpu_pc : unsigned(15 downto 0);
   signal scandoubler_disable : std_logic;
   signal ypbpr : std_logic;
 
@@ -302,7 +301,6 @@ architecture datapath of mist_top is
 
   signal flash_clk : unsigned(22 downto 0) := (others => '0');
   signal power_on_reset : std_logic := '1';
-  signal force_reset : std_logic := '0';
   signal reset : std_logic;
 
   signal D1_ACTIVE, D2_ACTIVE : std_logic;
@@ -388,7 +386,7 @@ begin
   power_on : process(CLK_14M)
   begin
     if rising_edge(CLK_14M) then
-      reset <= status(0) or power_on_reset or force_reset;
+      reset <= status(0) or power_on_reset;
 
       if buttons(1)='1' or status(7) = '1' then
         power_on_reset <= '1';
@@ -523,7 +521,6 @@ begin
     PDL_strobe     => pdl_strobe,
     IO_SELECT      => IO_SELECT,
     DEVICE_SELECT  => DEVICE_SELECT,
-    pcDebugOut     => cpu_pc,
     speaker        => audio
     );
 
@@ -597,7 +594,7 @@ begin
     sd_ack  => sd_ack
   );
 
-  --LED <= not D1_ACTIVE;
+  LED <= not (D1_ACTIVE or D2_ACTIVE);
 
   mb : work.mockingboard
     port map (
