@@ -18,7 +18,7 @@ the disk automatically. Use dsk2nib to convert AppleII disk images to .nib image
 The disk emulation is read only.
 
 If you press reset (the right button on the MiST) you'll enter Applesoft with the ] prompt.
-From here you have the integer BASIC. See: http://www.landsnail.com/a2ref.htm
+From here you have the Applesoft BASIC. See: http://www.landsnail.com/a2ref.htm
 If you want to boot another disk choose a .nib image via the osd and type the following:
 
 ]PR#6
