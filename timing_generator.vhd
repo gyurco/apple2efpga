@@ -109,7 +109,7 @@ begin
     LDPS_N_PRE <= not (
             (not Q3 and not AX and COL80 and not GR2_G)
          or (not Q3 and not AX and not PHI0 and not GR2_G)
-         or (not Q3 and not AX and not PHI0 and not SEGB)
+         or (not Q3 and not AX and not PHI0 and SEGB)
          or (not Q3 and not AX and not PHI0 and not VID7)
          or (not Q3 and not AX and not PHI0 and COLOR_REF and not H0)
          or (not Q3 and AX and not RAS_N and not PHI0 and VID7 and not SEGB and GR2_G));
