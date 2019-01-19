@@ -25,10 +25,10 @@ entity video_generator is
     CLK_7M     : in std_logic;
     ALTCHAR    : in std_logic;
 	GR2        : in std_logic;
-    SEGA         : in std_logic;
-    SEGB         : in std_logic;
-    SEGC         : in std_logic;
-    WNDW       : in std_logic;
+    SEGA       : in std_logic;
+    SEGB       : in std_logic;
+    SEGC       : in std_logic;
+    WNDW_N     : in std_logic;
     DL         : in unsigned(7 downto 0);  -- Data from RAM
     LDPS_N     : in std_logic;
     FLASH_CLK  : in std_logic;            -- Low-frequency flashing text clock
@@ -73,7 +73,7 @@ begin
     if rising_edge(CLK_14M) then
       if CLK_7M = '0' then
         if LDPS_N = '0' then        -- load
-          if WNDW = '1' then
+          if WNDW_N = '1' then
             video_shiftreg <= (others => '1');
           else
             video_shiftreg <= video_rom_out;

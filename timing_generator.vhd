@@ -42,10 +42,9 @@ entity timing_generator is
     SEGC        : buffer std_logic;
     GR1         : buffer std_logic;
     GR2         : buffer std_logic;
-    HBL	 	    : buffer std_logic;      -- Horizontal blanking
-    VBL         : buffer std_logic;      -- Vertical blanking
-    BLANK       : buffer std_logic;      -- Composite blanking
-    WNDW           : out std_logic;
+    HBLANK         : out std_logic;      -- Horizontal blanking
+    VBLANK         : out std_logic;      -- Vertical blanking
+    WNDW_N         : out std_logic;      -- Composite blanking
     LDPS_N         : out std_logic
   );
 
@@ -62,6 +61,7 @@ architecture rtl of timing_generator is
   signal RASRISE1 : std_logic;
   signal H0, VA, VB, VC, V2, V4, GR2_G: std_logic;
   signal HIRES : std_logic;
+  signal HBL, VBL : std_logic;
 
 begin
     RASRISE1 <= '1' when RAS_N = '1' and PHI0 = '0' and Q3 ='0' else '0';
@@ -132,7 +132,9 @@ begin
     begin
         if rising_edge(CLK_14M) then
             if RASRISE1 = '1' then
-                WNDW <= BLANK;
+                HBLANK <= HBL;
+                VBLANK <= VBL;
+                WNDW_N <= HBL or VBL;
                 GR2 <= GR1;
                 GR1 <= not (TEXT_MODE or (V2 and V4 and MIXED_MODE));
             end if;
@@ -185,8 +187,6 @@ begin
 
     HBL <= not (H(5) or (H(3) and H(4)));
     VBL <= V(6) and V(7);
-
-    BLANK <= HBL or VBL;
 
   -- V_SYNC <= VBL and V(5) and not V(4) and not V(3) and
   --           not V(2) and (H(4) or H(3) or H(5));

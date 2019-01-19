@@ -64,7 +64,7 @@ architecture rtl of apple2 is
   -- From the timing generator
   signal VIDEO_ADDRESS : unsigned(15 downto 0);
   signal LDPS_N : std_logic;
-  signal WNDW, GR2 : std_logic;
+  signal WNDW_N, GR2 : std_logic;
   signal SEGA, SEGB, SEGC : std_logic;
   
   -- Soft switches
@@ -406,9 +406,9 @@ begin
     SEGC           => SEGC,
     GR1            => COLOR_LINE,
     GR2            => GR2,
-    VBL            => VBL,
-    HBL            => HBL,
-    WNDW           => WNDW,
+    VBLANK         => VBL,
+    HBLANK         => HBL,
+    WNDW_N         => WNDW_N,
     LDPS_N         => LDPS_N);
 
   video_display : entity work.video_generator port map (
@@ -419,7 +419,7 @@ begin
     SEGB       => SEGB,
     SEGC       => SEGC,
     ALTCHAR    => ALTCHAR,
-    WNDW       => WNDW,
+    WNDW_N     => WNDW_N,
     DL         => VIDEO_DL,
     LDPS_N     => LDPS_N,
     FLASH_CLK  => FLASH_CLK,

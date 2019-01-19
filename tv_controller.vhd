@@ -23,32 +23,6 @@
 -- single pixel of one of 16 colors.  In text mode, each is displayed
 -- as two black or white pixels.
 -- 
--- The VGA display is nominally 640 X 480, but we use a 14.31818 MHz
--- dot clock.  To stay in sync with the Apple, we generate a new line
--- every 912 / 2 = 456 14M cycles= 31.8 us, a 31.4 kHz horizontal
--- refresh rate.  Of these, 280 will be active video.
---
--- One set of suggested VGA timings:
---
---          ______________________          ________
--- ________|        VIDEO         |________| VIDEO
---     |-C-|----------D-----------|-E-|
--- __   ______________________________   ___________
---   |_|                              |_|
---   |B|
---   |---------------A----------------|
---
--- A = 31.77 us	 Scanline time
--- B =  3.77 us  Horizontal sync time
--- C =  1.89 us  Back porch
--- D = 25.17 us  Active video
--- E =  0.94 us  Front porch
---
--- We use A = 456 / 14.31818 MHz = 31.84 us
---        B =  54 / 14.31818 MHz =  3.77 us
---        C = 106 / 14.31818 MHz =  7.40 us
---        D = 280 / 14.31818 MHz = 19.56 us
---        E =  16 / 14.31818 MHz =  1.12 us
 -------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
@@ -97,9 +71,9 @@ architecture rtl of tv_controller is
   constant VGA_SCANLINE : integer := 456*2; -- Must be 456*2 (set by the Apple)
   
   constant VGA_HSYNC : integer := 64;
-  constant VGA_BACK_PORCH : integer := 148;
+  constant VGA_BACK_PORCH : integer := 158;
   constant VGA_ACTIVE : integer := 282 * 2;
-  constant VGA_FRONT_PORCH : integer := 140;
+  constant VGA_FRONT_PORCH : integer := 130;
 
   -- VGA_HSYNC + VGA_BACK_PORCH + VGA_ACTIVE + VGA_FRONT_PORCH = VGA_SCANLINE
 
@@ -109,7 +83,7 @@ architecture rtl of tv_controller is
   signal VGA_VS_I, VGA_HS_I : std_logic;
 
   signal video_active : std_logic;
-  signal color_line_delayed_1, color_line_delayed_2 : std_logic;
+  signal color_line_delayed : std_logic;
 
 begin
 
@@ -118,8 +92,7 @@ begin
     if rising_edge(clk_14m) then
       if HBL = '0' and last_hbl = '1' then  -- Falling edge
         last_vbl <= VBL;
-        color_line_delayed_2 <= color_line_delayed_1;
-        color_line_delayed_1 <= COLOR_LINE;
+        color_line_delayed <= COLOR_LINE;
         hcount <= (others => '0');
         vcount <= vcount + 1;
         if last_VBL = '0' and VBL = '1' then
@@ -142,9 +115,9 @@ begin
         VGA_HS_I <= '1';
       end if;
 
-      if hcount = VGA_SCANLINE - 1 then
+      if hcount = 8 then
         hactive <= '1';
-      elsif hcount = VGA_ACTIVE then
+      elsif hcount = VGA_ACTIVE + 10 then
         hactive <= '0';
       end if;
     end if;
@@ -195,9 +168,9 @@ begin
 				r := X"20"; g := X"08"; b := X"01"; -- amber mode background color
 		end case;
 		
-      --if video_active = '1' then
+      if video_active = '1' then
         
-        if color_line_delayed_2 = '0' then  -- Monochrome mode
+        if color_line_delayed = '0' then  -- Monochrome mode
           
 			 if shift_reg(2) = '1' then
 				-- handle green/amber color modes
@@ -217,22 +190,22 @@ begin
           
           -- Tint of adjacent pixels is consistent : display the color
           
-          if shift_reg(1) = '1' then
+          if shift_reg(3) = '1' then
             r := r + basis_r(to_integer(hcount + 1));
             g := g + basis_g(to_integer(hcount + 1));
             b := b + basis_b(to_integer(hcount + 1));
           end if;
-          if shift_reg(2) = '1' then
+          if shift_reg(4) = '1' then
             r := r + basis_r(to_integer(hcount + 2));
             g := g + basis_g(to_integer(hcount + 2));
             b := b + basis_b(to_integer(hcount + 2));
           end if;
-          if shift_reg(3) = '1' then
+          if shift_reg(1) = '1' then
             r := r + basis_r(to_integer(hcount + 3));
             g := g + basis_g(to_integer(hcount + 3));
             b := b + basis_b(to_integer(hcount + 3));
           end if;
-          if shift_reg(4) = '1' then
+          if shift_reg(2) = '1' then
             r := r + basis_r(to_integer(hcount));
             g := g + basis_g(to_integer(hcount));
             b := b + basis_b(to_integer(hcount));
@@ -248,7 +221,7 @@ begin
           end case;
         end if;
         
-      --end if;
+      end if;
       
       VGA_R <= r;
       VGA_G <= g;
