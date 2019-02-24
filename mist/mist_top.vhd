@@ -222,6 +222,7 @@ architecture datapath of mist_top is
   component osd
          generic ( OSD_COLOR : integer := 1 );  -- blue
     port (  clk_sys     : in std_logic;
+        ce_pix      : in std_logic;
 
         R_in        : in std_logic_vector(5 downto 0);
         G_in        : in std_logic_vector(5 downto 0);
@@ -282,6 +283,8 @@ architecture datapath of mist_top is
   signal sd_hs        : std_logic;
   signal sd_vs        : std_logic;
 
+  signal osd_cnt      : unsigned(1 downto 0);
+  signal osd_ce       : std_logic;
   signal osd_red_i    : std_logic_vector(5 downto 0);
   signal osd_green_i  : std_logic_vector(5 downto 0);
   signal osd_blue_i   : std_logic_vector(5 downto 0);
@@ -315,7 +318,6 @@ architecture datapath of mist_top is
   signal io_index : std_logic_vector(4 downto 0);
   signal size : std_logic_vector(24 downto 0) := (others=>'0');
   signal a_ram: unsigned(15 downto 0);
-  signal osd_clk : std_logic;
   signal r : unsigned(7 downto 0);
   signal g : unsigned(7 downto 0);
   signal b : unsigned(7 downto 0);
@@ -693,9 +695,13 @@ begin
   osd_hs_i    <= hsync when scandoubler_disable = '1' else sd_hs;
   osd_vs_i    <= vsync when scandoubler_disable = '1' else sd_vs;
 
+  osd_cnt     <= osd_cnt + 1 when rising_edge(CLK_28M);
+  osd_ce      <= osd_cnt(0) when scandoubler_disable = '0' else osd_cnt(0) and osd_cnt(1);
+
   osd_inst : osd
     port map (
       clk_sys => CLK_28M,
+      ce_pix => osd_ce,
       SPI_DI => SPI_DI,
       SPI_SCK => SPI_SCK,
       SPI_SS3 => SPI_SS3,
