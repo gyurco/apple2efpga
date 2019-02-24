@@ -24,7 +24,7 @@
 module sdram (
 
 	// interface to the MT48LC16M16 chip
-	inout [15:0]  		sd_data,    // 16 bit bidirectional data bus
+	inout  reg [15:0]	sd_data,    // 16 bit bidirectional data bus
 	output reg [12:0]	sd_addr,    // 13 bit multiplexed address bus
 	output reg [1:0] 	sd_dqm,     // two byte masks
 	output reg [1:0] 	sd_ba,      // two banks
@@ -66,7 +66,7 @@ localparam STATE_CMD_CONT  = STATE_CMD_START  + RASCAS_DELAY; // 4 command can b
 localparam STATE_READ      = STATE_CMD_CONT + CAS_LATENCY + 4'd1;   // 
 localparam STATE_LAST      = 3'd7;   // last state in cycle
 
-assign dout = we?16'b0 : sd_data;
+assign dout = sd_data;
 
 reg [3:0] q /* synthesis noprune */;
 always @(posedge clk) begin
@@ -119,14 +119,10 @@ assign sd_ras = sd_cmd[2];
 assign sd_cas = sd_cmd[1];
 assign sd_we  = sd_cmd[0];
 
-// drive ram data lines when writing, set them as inputs otherwise
-// the eight bits are sent on both bytes ports. Which one's actually
-// written depends on the state of dqm of which only one is active
-// at a time when writing
-assign sd_data = we?{din, din}:16'bZZZZZZZZZZZZZZZZ;
 
 always @(posedge clk) begin
 	sd_cmd <= CMD_INHIBIT;  // default: idle
+	sd_data <= 16'bZ;
 	
 	if(reset != 0) begin
 		// initialization takes place at the end of the reset phase
@@ -164,6 +160,7 @@ always @(posedge clk) begin
 		// CAS phase 
 		if(q == STATE_CMD_CONT) begin
 			sd_cmd <= we?CMD_WRITE:CMD_READ;
+			if (we) sd_data <= {din, din};
 			sd_addr <= { 4'b0010, addr[8:0] };  // auto precharge
 		end
 
