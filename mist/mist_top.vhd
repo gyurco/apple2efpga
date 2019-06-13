@@ -23,6 +23,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use work.mist.all;
 
 entity mist_top is
 
@@ -105,41 +106,6 @@ architecture datapath of mist_top is
 
   end function; 
 
-
-
-  component user_io 
-    generic ( STRLEN : integer := 0 );
-     port (
-            clk_sys, clk_sd : in std_logic;
-            SPI_CLK, SPI_SS_IO, SPI_MOSI :in std_logic;
-            SPI_MISO : out std_logic;
-            conf_str : in std_logic_vector(8*STRLEN-1 downto 0);
-            joystick_0 : out std_logic_vector(5 downto 0);
-            joystick_1 : out std_logic_vector(5 downto 0);
-            joystick_analog_0 : out std_logic_vector(15 downto 0);
-            joystick_analog_1 : out std_logic_vector(15 downto 0);
-            status: out std_logic_vector(31 downto 0);
-            switches : out std_logic_vector(1 downto 0);
-            buttons : out std_logic_vector(1 downto 0);
-            scandoubler_disable : out std_logic;
-            ypbpr : out std_logic;
-            sd_lba : in std_logic_vector(31 downto 0);
-            sd_rd : in std_logic;
-            sd_wr : in std_logic;
-            sd_ack : out std_logic;
-            sd_ack_conf : out std_logic;
-            sd_conf : in std_logic;
-            sd_sdhc : in std_logic;
-            sd_dout : out std_logic_vector(7 downto 0);
-            sd_dout_strobe : out std_logic;
-            sd_din : in std_logic_vector(7 downto 0);
-            sd_buff_addr : out std_logic_vector(8 downto 0);
-            img_mounted : out std_logic;
-            ps2_kbd_clk : out std_logic;
-            ps2_kbd_data : out std_logic
-        );
-  end component user_io;
-
   component mist_sd_card
     port (
             sd_lba         : out std_logic_vector(31 downto 0);
@@ -200,57 +166,6 @@ architecture datapath of mist_top is
     );
   end component;
 
-  component scandoubler
-    port (
-        clk_sys     : in std_logic;
-        scanlines   : in std_logic_vector(1 downto 0);
-    
-        hs_in       : in std_logic;
-        vs_in       : in std_logic;
-        r_in        : in std_logic_vector(5 downto 0);
-        g_in        : in std_logic_vector(5 downto 0);
-        b_in        : in std_logic_vector(5 downto 0);
-
-        hs_out      : out std_logic;
-        vs_out      : out std_logic;
-        r_out       : out std_logic_vector(5 downto 0);
-        g_out       : out std_logic_vector(5 downto 0);
-        b_out       : out std_logic_vector(5 downto 0)
-        );
-  end component scandoubler;
-
-  component osd
-         generic ( OSD_COLOR : integer := 1 );  -- blue
-    port (  clk_sys     : in std_logic;
-        ce_pix      : in std_logic;
-
-        R_in        : in std_logic_vector(5 downto 0);
-        G_in        : in std_logic_vector(5 downto 0);
-        B_in        : in std_logic_vector(5 downto 0);
-        HSync       : in std_logic;
-        VSync       : in std_logic;
-
-        R_out       : out std_logic_vector(5 downto 0);
-        G_out       : out std_logic_vector(5 downto 0);
-        B_out       : out std_logic_vector(5 downto 0);
-
-        SPI_SCK     : in std_logic;
-        SPI_SS3     : in std_logic;
-        SPI_DI      : in std_logic
-    );
-  end component osd;
-
-  component rgb2ypbpr is
-    port ( 
-           red : in std_logic_vector(5 downto 0);
-           green : in std_logic_vector(5 downto 0);
-           blue : in std_logic_vector(5 downto 0);
-           y :  out std_logic_vector(5 downto 0);
-           pb : out std_logic_vector(5 downto 0);
-           pr : out std_logic_vector(5 downto 0)
-    );
-  end component;
-
   signal CLK_28M, CLK_14M, CLK_2M, CLK_2M_D, PHASE_ZERO : std_logic;
   signal clk_div : unsigned(1 downto 0);
   signal IO_SELECT, DEVICE_SELECT : std_logic_vector(7 downto 0);
@@ -271,33 +186,6 @@ architecture datapath of mist_top is
   signal scandoubler_disable : std_logic;
   signal ypbpr : std_logic;
 
-  signal vga_red : std_logic_vector(5 downto 0);
-  signal vga_green : std_logic_vector(5 downto 0);
-  signal vga_blue : std_logic_vector(5 downto 0);
-  signal vga_hsync : std_logic;
-  signal vga_vsync : std_logic;
-
-  signal sd_r         : std_logic_vector(5 downto 0);
-  signal sd_g         : std_logic_vector(5 downto 0);
-  signal sd_b         : std_logic_vector(5 downto 0);
-  signal sd_hs        : std_logic;
-  signal sd_vs        : std_logic;
-
-  signal osd_cnt      : unsigned(1 downto 0);
-  signal osd_ce       : std_logic;
-  signal osd_red_i    : std_logic_vector(5 downto 0);
-  signal osd_green_i  : std_logic_vector(5 downto 0);
-  signal osd_blue_i   : std_logic_vector(5 downto 0);
-  signal osd_vs_i     : std_logic;
-  signal osd_hs_i     : std_logic;
-  signal osd_red_o : std_logic_vector(5 downto 0);
-  signal osd_green_o : std_logic_vector(5 downto 0);
-  signal osd_blue_o : std_logic_vector(5 downto 0);
-
-  signal y : std_logic_vector(5 downto 0);
-  signal pb : std_logic_vector(5 downto 0);
-  signal pr : std_logic_vector(5 downto 0);
-  
   signal K : unsigned(7 downto 0);
   signal read_key : std_logic;
   signal akd : std_logic;
@@ -341,8 +229,8 @@ architecture datapath of mist_top is
   signal switches   : std_logic_vector(1 downto 0);
   signal buttons    : std_logic_vector(1 downto 0);
   signal joy        : std_logic_vector(5 downto 0);
-  signal joy0       : std_logic_vector(5 downto 0);
-  signal joy1       : std_logic_vector(5 downto 0);
+  signal joy0       : std_logic_vector(31 downto 0);
+  signal joy1       : std_logic_vector(31 downto 0);
   signal joy_an0    : std_logic_vector(15 downto 0);
   signal joy_an1    : std_logic_vector(15 downto 0);
   signal joy_an     : std_logic_vector(15 downto 0);
@@ -359,9 +247,6 @@ architecture datapath of mist_top is
   signal sd_rd:   std_logic;
   signal sd_wr:   std_logic;
   signal sd_ack:  std_logic;
-  signal sd_ack_conf:  std_logic;
-  signal sd_conf: std_logic;
-  signal sd_sdhc: std_logic;
   
   -- data from io controller to sd card emulation
   signal sd_data_in: std_logic_vector(7 downto 0);
@@ -403,7 +288,7 @@ begin
     end if;
   end process;
   
-  SDRAM_CLK <= not CLK_28M;
+  SDRAM_CLK <= CLK_28M;
   
   pll : entity work.mist_clk 
   port map (
@@ -422,7 +307,7 @@ begin
   GAMEPORT <=  "00" & joyy & joyx & "0" & joy(5) & joy(4) & UART_RX;
   
   joy_an <= joy_an0 when status(5)='0' else joy_an1;
-  joy <= joy0 when status(5)='0' else joy1;
+  joy <= joy0(5 downto 0) when status(5)='0' else joy1(5 downto 0);
   
   process(CLK_14M, pdl_strobe)
     variable cx, cy : integer range -100 to 5800 := 0;
@@ -659,9 +544,9 @@ begin
       sd_rd   => sd_rd,
       sd_wr   => sd_wr,
       sd_ack  => sd_ack,
-      sd_ack_conf => sd_ack_conf,
+      sd_ack_conf => open,
       sd_sdhc => '1',
-      sd_conf => sd_conf,
+      sd_conf => '0',
       sd_dout => sd_data_out,
       sd_dout_strobe => sd_data_out_strobe,
       sd_din => sd_data_in,
@@ -671,65 +556,32 @@ begin
       ps2_kbd_data => ps2Data
     );
 
- scandoubler_inst: scandoubler
-    port map (
-        clk_sys     => CLK_28M,
-        scanlines   => status(12 downto 11),
-
-        hs_in       => hsync,
-        vs_in       => vsync,
-        r_in        => std_logic_vector(r(7 downto 2)),
-        g_in        => std_logic_vector(g(7 downto 2)),
-        b_in        => std_logic_vector(b(7 downto 2)),
-
-        hs_out      => sd_hs,
-        vs_out      => sd_vs,
-        r_out       => sd_r,
-        g_out       => sd_g,
-        b_out       => sd_b
-    );
-
-  osd_red_i   <= std_logic_vector(r(7 downto 2)) when scandoubler_disable = '1' else sd_r;
-  osd_green_i <= std_logic_vector(g(7 downto 2)) when scandoubler_disable = '1' else sd_g;
-  osd_blue_i  <= std_logic_vector(b(7 downto 2)) when scandoubler_disable = '1' else sd_b;
-  osd_hs_i    <= hsync when scandoubler_disable = '1' else sd_hs;
-  osd_vs_i    <= vsync when scandoubler_disable = '1' else sd_vs;
-
-  osd_cnt     <= osd_cnt + 1 when rising_edge(CLK_28M);
-  osd_ce      <= osd_cnt(0) when scandoubler_disable = '0' else osd_cnt(0) and osd_cnt(1);
-
-  osd_inst : osd
+ mist_video: work.mist.mist_video
+    generic map(
+	  SD_HCNT_WIDTH => 10
+	)
     port map (
       clk_sys => CLK_28M,
-      ce_pix => osd_ce,
+      scanlines   => status(12 downto 11),
+	  ce_divider => '1',
+	  scandoubler_disable => scandoubler_disable,
+	  ypbpr => ypbpr,
+	  rotate => "00",
+
       SPI_DI => SPI_DI,
       SPI_SCK => SPI_SCK,
       SPI_SS3 => SPI_SS3,
-      R_in => osd_red_i,
-      G_in => osd_green_i,
-      B_in => osd_blue_i,
-      HSync => osd_hs_i,
-      VSync => osd_vs_i,
-      R_out => vga_red,
-      G_out => vga_green,
-      B_out => vga_blue
-    );
 
-  -- map ypbpr or rgb to VGA output
-  VGA_R <= pr when ypbpr='1' else vga_red;
-  VGA_G <= y  when ypbpr='1' else vga_green;
-  VGA_B <= pb when ypbpr='1' else vga_blue;
-  VGA_HS <= not (hsync xor vsync) when scandoubler_disable='1' else not (sd_hs xor sd_vs) when ypbpr = '1' else sd_hs;
-  VGA_VS <= '1' when ypbpr='1' or scandoubler_disable = '1' else sd_vs;
-
-  rgb2component : rgb2ypbpr
-    port map (
-      red   => vga_red,
-      green => vga_green,
-      blue  => vga_blue,
-      y     => y,
-      pb    => pb,
-      pr    => pr
+      R => std_logic_vector(r)(7 downto 2),
+      G => std_logic_vector(g)(7 downto 2),
+      B => std_logic_vector(b)(7 downto 2),
+	  HSync => hsync,
+      VSync => vsync,
+      VGA_HS => VGA_HS,
+	  VGA_VS => VGA_VS,
+	  VGA_R  => VGA_R,
+	  VGA_G  => VGA_G,
+	  VGA_B  => VGA_B
     );
 
 end datapath;
