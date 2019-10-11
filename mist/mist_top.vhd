@@ -401,7 +401,7 @@ begin
     HBL            => HBL,
     VBL            => VBL,
     K              => K,
-    read_key       => read_key,
+    KEYSTROBE      => read_key,
     AKD            => akd,
     AN             => open,
     GAMEPORT       => GAMEPORT,

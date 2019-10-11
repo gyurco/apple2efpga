@@ -35,7 +35,7 @@ entity apple2 is
     HBL            : out std_logic;
     VBL            : buffer std_logic;
     K              : in unsigned(7 downto 0);    -- Keyboard data
-    READ_KEY       : buffer std_logic;           -- Processor has read key
+    KEYSTROBE      : out std_logic;              -- Processor has read key
     AKD            : in std_logic;               -- Any key down flag
     AN             : buffer std_logic_vector(3 downto 0);  -- Annunciator outputs
     -- GAMEPORT input bits:
@@ -106,6 +106,7 @@ architecture rtl of apple2 is
 
   -- Address decoder signals
   signal RAM_SELECT : std_logic := '1';
+  signal READ_KEY : std_logic := '0';
   signal KEYBOARD_SELECT : std_logic := '0';
   signal TAPE_OUT : std_logic;
   signal SPEAKER_SELECT : std_logic;
@@ -172,11 +173,12 @@ begin
 --  rom_addr <= (A(13) and A(12)) & (not A(12)) & A(11 downto 0);
   rom_addr <= A(13 downto 0);
 
-  address_decoder: process (A, C3ROM, C8ROM, CXROM)
+  address_decoder: process (A, C3ROM, C8ROM, CXROM, we)
   begin
     ROM_SELECT <= '0';
     RAM_SELECT <= '0';
     KEYBOARD_SELECT <= '0';
+    KEYSTROBE <= '0';
     READ_KEY <= '0';
     TAPE_OUT <= '0';
     SPEAKER_SELECT <= '0';
@@ -201,6 +203,9 @@ begin
                      KEYBOARD_SELECT <= '1';
                   when x"1" =>          -- C010 - C01F
                      READ_KEY <= '1';
+                     if we = '1' or A(3 downto 0) = x"0" then
+                         KEYSTROBE <= '1';
+                     end if;
                   when x"2" =>          -- C020 - C02F
                     TAPE_OUT <= '1';
                   when x"3" =>          -- C030 - C03F
