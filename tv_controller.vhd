@@ -67,6 +67,7 @@ architecture rtl of tv_controller is
   signal hcount : unsigned(10 downto 0);
   signal vcount : unsigned(8 downto 0);
   signal hactive : std_logic;
+  signal vactive : std_logic;
 
   constant VGA_SCANLINE : integer := 456*2; -- Must be 456*2 (set by the Apple)
   
@@ -117,8 +118,10 @@ begin
 
       if hcount = 8 then
         hactive <= '1';
+        vactive <= not VBL;
       elsif hcount = VGA_ACTIVE + 10 then
         hactive <= '0';
+        vactive <= not VBL;
       end if;
     end if;
   end process hsync_gen;
@@ -145,7 +148,7 @@ begin
     end if;
   end process;
   
-  video_active <= hactive and not VBL;
+  video_active <= hactive and vactive;
 
   pixel_generator: process (clk_14m)
     variable r, g, b : unsigned(7 downto 0); 
