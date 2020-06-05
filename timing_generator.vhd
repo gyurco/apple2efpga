@@ -24,6 +24,9 @@ entity timing_generator is
     CAS_N          : buffer std_logic := '0';
     AX             : buffer std_logic := '0';
     PHI0           : buffer std_logic := '0'; -- 1.0 MHz processor clock
+    PHI0_EN_R      : out std_logic := '0';
+    PHI0_EN_F      : out std_logic := '0';
+
     COLOR_REF      : buffer std_logic := '0'; -- 3.579545 MHz colorburst
 
     TEXT_MODE      : in std_logic;
@@ -113,6 +116,9 @@ begin
          or (not Q3 and not AX and not PHI0 and not VID7)
          or (not Q3 and not AX and not PHI0 and COLOR_REF and not H0)
          or (not Q3 and AX and not RAS_N and not PHI0 and VID7 and not SEGB and GR2_G));
+
+    PHI0_EN_R <= not PHI0 and PHI0_PRE;
+    PHI0_EN_F <= PHI0 and not PHI0_PRE;
 
     TIMING_HAL: process (CLK_14M)
     begin

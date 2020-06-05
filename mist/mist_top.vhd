@@ -153,7 +153,7 @@ architecture datapath of mist_top is
     );
   end component;
 
-  signal CLK_28M, CLK_14M, CLK_2M, CLK_2M_D, PHASE_ZERO : std_logic;
+  signal CLK_28M, CLK_14M, CLK_2M, CLK_2M_D, PHASE_ZERO, PHASE_ZERO_R, PHASE_ZERO_F : std_logic;
   signal clk_div : unsigned(1 downto 0);
   signal IO_SELECT, DEVICE_SELECT : std_logic_vector(7 downto 0);
   signal ADDR : unsigned(15 downto 0);
@@ -370,6 +370,8 @@ begin
     CLK_14M        => CLK_14M,
     CLK_2M         => CLK_2M,
     PHASE_ZERO     => PHASE_ZERO,
+    PHASE_ZERO_R   => PHASE_ZERO_R,
+    PHASE_ZERO_F   => PHASE_ZERO_F,
     FLASH_CLK      => flash_clk(22),
     reset          => reset,
     cpu            => status(1),
@@ -474,6 +476,8 @@ begin
     port map (
       CLK_14M    => CLK_14M,
       PHASE_ZERO => PHASE_ZERO,
+      PHASE_ZERO_R => PHASE_ZERO_R,
+      PHASE_ZERO_F => PHASE_ZERO_F,
       I_RESET_L => not reset,
       I_ENA_H   => status(6),
 

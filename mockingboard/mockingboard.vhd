@@ -19,6 +19,8 @@ entity MOCKINGBOARD is
   port (
     CLK_14M           : in std_logic;
     PHASE_ZERO        : in std_logic;
+    PHASE_ZERO_R      : in std_logic;
+    PHASE_ZERO_F      : in std_logic;
     I_ADDR            : in std_logic_vector(7 downto 0);
     I_DATA            : in std_logic_vector(7 downto 0);
     O_DATA            : out std_logic_vector(7 downto 0);
@@ -63,7 +65,7 @@ entity MOCKINGBOARD is
   signal rirq             : std_logic;
   
   signal PSG_EN   : std_logic;
-  signal VIA_CE_F, VIA_CE_R, PHASE_ZERO_D : std_logic;
+  signal VIA_CE_F, VIA_CE_R : std_logic;
 
   component YM2149
   port (
@@ -94,18 +96,13 @@ entity MOCKINGBOARD is
 begin
 
   O_DATA <= o_data_l when I_ADDR(7) = '0' else o_data_r;
-  O_IRQ_L <= not lirq or not I_ENA_H;
-  O_NMI_L <= not rirq or not I_ENA_H;
+	-- Both VIAs generate IRQ, not NMI!
+  O_IRQ_L <= (not lirq and not rirq) or not I_ENA_H;
+  O_NMI_L <= '1';
 
-  PSG_EN <= '1' when PHASE_ZERO = '0' and PHASE_ZERO_D = '1' else '0';
-  VIA_CE_R <= '1' when PHASE_ZERO = '1' and PHASE_ZERO_D = '0' else '0';
-  VIA_CE_F <= '1' when PHASE_ZERO = '0' and PHASE_ZERO_D = '1' else '0';
-
-  process (CLK_14M) begin
-    if rising_edge(CLK_14M) then
-        PHASE_ZERO_D <= PHASE_ZERO;
-    end if;
-  end process;
+  PSG_EN <= PHASE_ZERO_F;
+  VIA_CE_R <= PHASE_ZERO_F;
+  VIA_CE_F <= PHASE_ZERO_R;
 
 -- Left Channel Combo
   m6522_left : work.via6522

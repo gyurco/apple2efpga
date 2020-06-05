@@ -17,7 +17,9 @@ entity apple2 is
     CLK_14M        : in  std_logic;              -- 14.31818 MHz master clock
     CLK_2M         : out std_logic;
     PHASE_ZERO     : buffer std_logic;
-    FLASH_CLK      : in  std_logic;        -- approx. 2 Hz flashing char clock
+    PHASE_ZERO_R   : buffer std_logic;           -- next clock is PHI0=1
+    PHASE_ZERO_F   : buffer std_logic;           -- next clock is PHI0=0
+    FLASH_CLK      : in  std_logic;              -- approx. 2 Hz flashing char clock
     reset          : in  std_logic;
     cpu            : in  std_logic;              -- 0 - 6502, 1 - 65C02
     ADDR           : out unsigned(15 downto 0);  -- CPU address
@@ -27,8 +29,8 @@ entity apple2 is
     aux            : buffer std_logic;           -- Write to MAIN or AUX RAM
     PD             : in unsigned(7 downto 0);    -- Data to CPU from peripherals
     CPU_WE         : out std_logic;
-    IRQ_n          : in std_logic;
-    NMI_n          : in std_logic;
+    IRQ_n          : in std_logic := '1';
+    NMI_n          : in std_logic := '1';
     ram_we         : out std_logic;              -- RAM write enable
     VIDEO          : out std_logic;
     COLOR_LINE     : out std_logic;
@@ -57,7 +59,6 @@ architecture rtl of apple2 is
   -- Clocks
   signal CLK_7M : std_logic;
   signal Q3, RAS_N, CAS_N, AX : std_logic;
-  signal PHASE_ZERO_D : std_logic;
   signal COLOR_REF : std_logic;
   signal CPU_EN, CPU_EN_POST : std_logic;
 
@@ -146,18 +147,14 @@ begin
   ram_we <= ((we and RAM_SELECT) or (we and HRAM_WRITE_EN)) when PHASE_ZERO = '1' else '0';
   CPU_WE <= we;
 
+	CPU_DL <= ram_do(7 downto 0) when aux = '0' else ram_do(15 downto 8);
+
   RAM_data_latch : process (CLK_14M)
   begin
     if rising_edge(CLK_14M) then
-      if AX = '1' and CAS_N = '0' and RAS_N = '1' and Q3 = '0' then
-        -- Latch video data at Phase 1, CPU data at Phase 0
-        if PHASE_ZERO = '0' then
-            VIDEO_DL_LATCH <= ram_do;
-        elsif aux = '0' then
-            CPU_DL <= ram_do(7 downto 0);
-        else
-            CPU_DL <= ram_do(15 downto 8);
-        end if;
+      if AX = '1' and CAS_N = '0' and RAS_N = '1' and Q3 = '0' and PHASE_ZERO = '0' then
+        -- Latch video data at Phase 0
+        VIDEO_DL_LATCH <= ram_do;
       end if;
     end if;
   end process;
@@ -396,6 +393,8 @@ begin
     Q3	           => Q3,
     AX             => AX,
     PHI0           => PHASE_ZERO,
+    PHI0_EN_R      => PHASE_ZERO_R,
+    PHI0_EN_F      => PHASE_ZERO_F,
     COLOR_REF      => COLOR_REF,
     TEXT_MODE      => TEXT_MODE,
     PAGE2          => PAGE2,
@@ -434,12 +433,11 @@ begin
   A <= unsigned(T65_A(15 downto 0)) when cpu = '0' else R65C02_A;
   D_OUT <= unsigned(T65_DO) when cpu = '0' else R65C02_DO;
   T65_DI <= std_logic_vector(D_OUT) when T65_WE_N = '0' else std_logic_vector(D_IN);
-  CPU_EN <= '1' when PHASE_ZERO_D = '1' and PHASE_ZERO = '0' else '0';
+  CPU_EN <= PHASE_ZERO_F;
 
   cpu_enable: process (CLK_14M)
   begin
     if rising_edge(CLK_14M) then
-      PHASE_ZERO_D <= PHASE_ZERO;
       CPU_EN_POST <= CPU_EN;
     end if;
   end process cpu_enable;
