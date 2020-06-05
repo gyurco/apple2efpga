@@ -133,19 +133,6 @@ architecture datapath of mist_top is
         );
   end component mist_sd_card;
 
-  component data_io is
-    port ( sck: in std_logic;
-           ss: in std_logic;
-           sdi: in std_logic;
-           downloading: out std_logic;
-           index: out std_logic_vector(4 downto 0);
-           size: out std_logic_vector(24 downto 0);
-           clk: in std_logic;
-           wr: out std_logic;
-           a: out std_logic_vector(24 downto 0);
-           d: out std_logic_vector(7 downto 0));
-  end component;
-
   component sdram is
     port( sd_data : inout std_logic_vector(15 downto 0);
           sd_addr : out std_logic_vector(12 downto 0);
@@ -200,7 +187,7 @@ architecture datapath of mist_top is
   signal TRACK_RAM_DI : unsigned(7 downto 0);
   signal TRACK_RAM_WE : std_logic;
   signal track : unsigned(5 downto 0);
-  signal disk_change : std_logic;
+  signal disk_change : std_logic_vector(1 downto 0);
 
   signal downl : std_logic := '0';
   signal io_index : std_logic_vector(4 downto 0);
@@ -244,8 +231,8 @@ architecture datapath of mist_top is
 
   -- signals to connect sd card emulation with io controller
   signal sd_lba:  std_logic_vector(31 downto 0);
-  signal sd_rd:   std_logic;
-  signal sd_wr:   std_logic;
+  signal sd_rd:   std_logic_vector(1 downto 0) := (others => '0');
+  signal sd_wr:   std_logic_vector(1 downto 0) := (others => '0');
   signal sd_ack:  std_logic;
   
   -- data from io controller to sd card emulation
@@ -468,7 +455,7 @@ begin
     track     => std_logic_vector(TRACK),
     busy          => open,
     save_track    => '0',
-    change        => disk_change,
+    change        => disk_change(0),
 
     sd_buff_addr => sd_buff_addr,
     sd_buff_dout => sd_data_out,
@@ -476,8 +463,8 @@ begin
     sd_buff_wr   => sd_data_out_strobe,
 
     sd_lba  => sd_lba,
-    sd_rd   => sd_rd,
-    sd_wr   => sd_wr,
+    sd_rd   => sd_rd(0),
+    sd_wr   => sd_wr(0),
     sd_ack  => sd_ack
   );
 
@@ -502,7 +489,7 @@ begin
       );
 
   dac_l : work.dac
-    generic map(9)
+    generic map(10)
     port map (
       clk_i		=> CLK_14M,
       res_n_i	=> not reset,
@@ -511,7 +498,7 @@ begin
       );
 
   dac_r : work.dac
-    generic map(9)
+    generic map(10)
     port map (
       clk_i		=> CLK_14M,
       res_n_i	=> not reset,
@@ -524,7 +511,7 @@ begin
     
     port map (
       clk_sys => CLK_14M,
-	  clk_sd => CLK_14M,
+      clk_sd => CLK_14M,
       SPI_CLK => SPI_SCK,
       SPI_SS_IO => CONF_DATA0,    
       SPI_MISO => SPI_DO,    
@@ -563,10 +550,10 @@ begin
     port map (
       clk_sys => CLK_28M,
       scanlines   => status(12 downto 11),
-	  ce_divider => '1',
-	  scandoubler_disable => scandoubler_disable,
-	  ypbpr => ypbpr,
-	  rotate => "00",
+      ce_divider => '1',
+      scandoubler_disable => scandoubler_disable,
+      ypbpr => ypbpr,
+      rotate => "00",
 
       SPI_DI => SPI_DI,
       SPI_SCK => SPI_SCK,
@@ -575,13 +562,13 @@ begin
       R => std_logic_vector(r)(7 downto 2),
       G => std_logic_vector(g)(7 downto 2),
       B => std_logic_vector(b)(7 downto 2),
-	  HSync => hsync,
+      HSync => hsync,
       VSync => vsync,
       VGA_HS => VGA_HS,
-	  VGA_VS => VGA_VS,
-	  VGA_R  => VGA_R,
-	  VGA_G  => VGA_G,
-	  VGA_B  => VGA_B
+      VGA_VS => VGA_VS,
+      VGA_R  => VGA_R,
+      VGA_G  => VGA_G,
+      VGA_B  => VGA_B
     );
 
 end datapath;
