@@ -327,7 +327,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE mist_sd_card.sv
 set_global_assignment -name VERILOG_FILE sdram.v
 set_global_assignment -name QIP_FILE "mist-modules/mist.qip"
 set_global_assignment -name QIP_FILE mist_clk.qip
-set_global_assignment -name QIP_FILE ../t65/t65.qip
+set_global_assignment -name QIP_FILE ../T65/T65.qip
 set_global_assignment -name VHDL_FILE ../R65Cx2.vhd
 set_global_assignment -name VHDL_FILE ../video_generator.vhd
 set_global_assignment -name VHDL_FILE ../tv_controller.vhd
@@ -348,4 +348,5 @@ set_global_assignment -name SIGNALTAP_FILE out/joy.stp
 set_global_assignment -name SIGNALTAP_FILE out/timing.stp
 set_global_assignment -name SIGNALTAP_FILE out/keyb.stp
 set_global_assignment -name SIGNALTAP_FILE out/video.stp
+set_global_assignment -name CDF_FILE out/mist_top.cdf
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
