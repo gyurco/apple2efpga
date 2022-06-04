@@ -82,7 +82,7 @@ architecture datapath of mist_top is
 
   constant CONF_STR : string :=
    "AppleII;;"&
-   "S,NIB;"&
+   "S0,NIB;"&
    "O1,CPU Type,6502,65C02;"&
    "O23,Monitor,Color,B&W,Green,Amber;"&
    "OBC,Scanlines,Off,25%,50%,75%;"&
@@ -218,10 +218,10 @@ architecture datapath of mist_top is
   signal joy        : std_logic_vector(5 downto 0);
   signal joy0       : std_logic_vector(31 downto 0);
   signal joy1       : std_logic_vector(31 downto 0);
-  signal joy_an0    : std_logic_vector(15 downto 0);
-  signal joy_an1    : std_logic_vector(15 downto 0);
+  signal joy_an0    : std_logic_vector(31 downto 0);
+  signal joy_an1    : std_logic_vector(31 downto 0);
   signal joy_an     : std_logic_vector(15 downto 0);
-  signal status     : std_logic_vector(31 downto 0);
+  signal status     : std_logic_vector(63 downto 0);
   signal ps2Clk     : std_logic;
   signal ps2Data    : std_logic;
   
@@ -293,7 +293,7 @@ begin
   -- pdl3 pdl2 pdl1 pdl0 pb3 pb2 pb1 casette
   GAMEPORT <=  "00" & joyy & joyx & "0" & joy(5) & joy(4) & UART_RX;
   
-  joy_an <= joy_an0 when status(5)='0' else joy_an1;
+  joy_an <= joy_an0(15 downto 0) when status(5)='0' else joy_an1(15 downto 0);
   joy <= joy0(5 downto 0) when status(5)='0' else joy1(5 downto 0);
   
   process(CLK_14M, pdl_strobe)
