@@ -20,7 +20,7 @@ set_global_assignment -name TOP_LEVEL_ENTITY mist_top
 
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 5.1
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "22:49:11  JANUARY 31, 2006"
-set_global_assignment -name LAST_QUARTUS_VERSION "13.1 SP4.26"
+set_global_assignment -name LAST_QUARTUS_VERSION 13.1
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY out
 
 
@@ -338,10 +338,10 @@ set_global_assignment -name VHDL_FILE ../keyboard.vhd
 set_global_assignment -name VHDL_FILE ../disk_ii_rom.vhd
 set_global_assignment -name VHDL_FILE ../disk_ii.vhd
 set_global_assignment -name VHDL_FILE ../apple2.vhd
-set_global_assignment -name VHDL_FILE ../mockingboard/vol_table_array.vhd
 set_global_assignment -name VHDL_FILE ../mockingboard/mockingboard.vhd
 set_global_assignment -name VHDL_FILE ../mockingboard/via6522.vhd
-set_global_assignment -name SYSTEMVERILOG_FILE ../mockingboard/YM2149.sv
+set_global_assignment -name VHDL_FILE ../mockingboard/vol_table_array.vhd
+set_global_assignment -name VHDL_FILE ../mockingboard/YM2149.vhd
 set_global_assignment -name SIGNALTAP_FILE out/ram.stp
 set_global_assignment -name SIGNALTAP_FILE out/cpu.stp
 set_global_assignment -name SIGNALTAP_FILE out/joy.stp

@@ -48,16 +48,6 @@ entity MOCKINGBOARD is
   signal i_psg_l          : std_logic_vector(7 downto 0);
   signal o_psg_l          : std_logic_vector(7 downto 0);
 
-  signal o_psg_al         : std_logic_vector(7 downto 0);
-  signal o_psg_bl         : std_logic_vector(7 downto 0);
-  signal o_psg_cl         : std_logic_vector(7 downto 0);
-  signal o_psg_ol         : std_logic_vector(9 downto 0);
-  
-  signal o_psg_ar         : std_logic_vector(7 downto 0);
-  signal o_psg_br         : std_logic_vector(7 downto 0);
-  signal o_psg_cr         : std_logic_vector(7 downto 0);
-  signal o_psg_or         : std_logic_vector(9 downto 0);
-  
   signal o_data_l          : std_logic_vector(7 downto 0);
   signal o_data_r          : std_logic_vector(7 downto 0);
   
@@ -66,32 +56,6 @@ entity MOCKINGBOARD is
   
   signal PSG_EN   : std_logic;
   signal VIA_CE_F, VIA_CE_R : std_logic;
-
-  component YM2149
-  port (
-    CLK         : in  std_logic;
-    CE          : in  std_logic;
-    RESET       : in  std_logic;
-    BDIR        : in  std_logic; -- Bus Direction (0 - read , 1 - write)
-    BC          : in  std_logic; -- Bus control
-    DI          : in  std_logic_vector(7 downto 0);
-    DO          : out std_logic_vector(7 downto 0);
-    CHANNEL_A   : out std_logic_vector(7 downto 0);
-    CHANNEL_B   : out std_logic_vector(7 downto 0);
-    CHANNEL_C   : out std_logic_vector(7 downto 0);
-
-    SEL         : in  std_logic;
-    MODE        : in  std_logic;
-
-    ACTIVE      : out std_logic_vector(5 downto 0);
-
-    IOA_in      : in  std_logic_vector(7 downto 0);
-    IOA_out     : out std_logic_vector(7 downto 0);
-
-    IOB_in      : in  std_logic_vector(7 downto 0);
-    IOB_out     : out std_logic_vector(7 downto 0)
-    );
-  end component;
 
 begin
 
@@ -140,32 +104,35 @@ begin
       irq         => lirq
       );
 
-  psg_left: YM2149
-  port map (
-    CLK         => CLK_14M,
-    CE          => PSG_EN and I_ENA_H,
-    RESET       => not o_pb_l(2),
-    BDIR        => o_pb_l(1),
-    BC          => o_pb_l(0),
-    DI          => i_psg_l,
-    DO          => o_psg_l,
-    CHANNEL_A   => o_psg_al,
-    CHANNEL_B   => o_psg_bl,
-    CHANNEL_C   => o_psg_cl,
+  psg_left: entity work.YM2149
+    port map(
+      -- data bus
+      I_DA       => i_psg_l,            -- in  std_logic_vector(7 downto 0); -- pin 37 to 30
+      O_DA       => o_psg_l,            -- out std_logic_vector(7 downto 0); -- pin 37 to 30
+      O_DA_OE_L  => open,               -- out std_logic;
+      -- control
+      I_A9_L     => '0',                -- in  std_logic; -- pin 24
+      I_A8       => '1',                -- in  std_logic; -- pin 25
+      I_BDIR     => o_pb_l(1),          -- in  std_logic; -- pin 27
+      I_BC2      => '1',                -- in  std_logic; -- pin 28
+      I_BC1      => o_pb_l(0),          -- in  std_logic; -- pin 29
+      I_SEL_L    => '1',                -- in  std_logic;
 
-    SEL         => '0',
-    MODE        => '0',
+      O_AUDIO_L  => O_AUDIO_L,          -- out std_logic_vector(7 downto 0);
 
-    ACTIVE      => open,
+      -- port a
+      I_IOA      => (others => '0'),    -- in  std_logic_vector(7 downto 0); -- pin 21 to 14
+      O_IOA      => open,               -- out std_logic_vector(7 downto 0); -- pin 21 to 14
+      O_IOA_OE_L => open,               -- out std_logic;
+      -- port b
+      I_IOB      => (others => '0'),    -- in  std_logic_vector(7 downto 0); -- pin 13 to 6
+      O_IOB      => open,               -- out std_logic_vector(7 downto 0); -- pin 13 to 6
+      O_IOB_OE_L => open,               -- out std_logic;
 
-    IOA_in      => (others => '0'),
-    IOA_out     => open,
-
-    IOB_in      => (others => '0'),
-    IOB_out     => open
+      ENA        => PSG_EN and I_ENA_H, -- in  std_logic; -- clock enable for higher speed operation
+      RESET_L    => o_pb_l(2),          -- in  std_logic;
+      CLK        => CLK_14M             -- in  std_logic
     );
-
-  O_AUDIO_L <= std_logic_vector(unsigned("00" & o_psg_al) + unsigned("00" & o_psg_bl) + unsigned("00" & o_psg_cl));
 
 -- Right Channel Combo
   m6522_right : work.via6522
@@ -203,32 +170,33 @@ begin
       irq         => rirq
       );
 
-  psg_right: YM2149
-  port map (
-    CLK         => CLK_14M,
-    CE          => PSG_EN and I_ENA_H,
-    RESET       => not o_pb_r(2),
-    BDIR        => o_pb_r(1),
-    BC          => o_pb_r(0),
-    DI          => i_psg_r,
-    DO          => o_psg_r,
-    CHANNEL_A   => o_psg_ar,
-    CHANNEL_B   => o_psg_br,
-    CHANNEL_C   => o_psg_cr,
+  psg_right: entity work.YM2149
+    port map(
+      -- data bus
+      I_DA       => i_psg_r,            -- in  std_logic_vector(7 downto 0); -- pin 37 to 30
+      O_DA       => o_psg_r,            -- out std_logic_vector(7 downto 0); -- pin 37 to 30
+      O_DA_OE_L  => open,               -- out std_logic;
+      -- control
+      I_A9_L     => '0',                -- in  std_logic; -- pin 24
+      I_A8       => '1',                -- in  std_logic; -- pin 25
+      I_BDIR     => o_pb_r(1),          -- in  std_logic; -- pin 27
+      I_BC2      => '1',                -- in  std_logic; -- pin 28
+      I_BC1      => o_pb_r(0),          -- in  std_logic; -- pin 29
+      I_SEL_L    => '1',                -- in  std_logic;
 
-    SEL         => '0',
-    MODE        => '0',
+      O_AUDIO_L  => O_AUDIO_R,          -- out std_logic_vector(7 downto 0);
 
-    ACTIVE      => open,
+      -- port a
+      I_IOA      => (others => '0'),    -- in  std_logic_vector(7 downto 0); -- pin 21 to 14
+      O_IOA      => open,               -- out std_logic_vector(7 downto 0); -- pin 21 to 14
+      O_IOA_OE_L => open,               -- out std_logic;
+      -- port b
+      I_IOB      => (others => '0'),    -- in  std_logic_vector(7 downto 0); -- pin 13 to 6
+      O_IOB      => open,               -- out std_logic_vector(7 downto 0); -- pin 13 to 6
+      O_IOB_OE_L => open,               -- out std_logic;
 
-    IOA_in      => (others => '0'),
-    IOA_out     => open,
-
-    IOB_in      => (others => '0'),
-    IOB_out     => open
+      ENA        => PSG_EN and I_ENA_H, -- in  std_logic; -- clock enable for higher speed operation
+      RESET_L    => o_pb_r(2),          -- in  std_logic;
+      CLK        => CLK_14M             -- in  std_logic
     );
-
-  O_AUDIO_R <= std_logic_vector(unsigned("00" & o_psg_ar) + unsigned("00" & o_psg_br) + unsigned("00" & o_psg_cr));
-
-
 end architecture RTL;
