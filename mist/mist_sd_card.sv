@@ -37,23 +37,20 @@ module mist_sd_card
 
 	input         save_track,
 	input         change,
+	input         mount,
 	input   [5:0] track,
 
-	output [12:0] ram_addr,
-	output  [7:0] ram_di,
-	input   [7:0] ram_do,
-	output        ram_we,
+	input  [12:0] ram_addr,
+	output  [7:0] ram_do,
+	input   [7:0] ram_di,
+	input         ram_we,
 	output reg    busy
 );
 
 assign sd_lba = lba;
-assign ram_addr = { rel_lba, sd_buff_addr};
-assign ram_di = sd_buff_dout;
-assign sd_buff_din = ram_do;
-assign ram_we = sd_buff_wr;
 
-reg [31:0] lba;
-reg [3:0]  rel_lba;
+reg  [31:0] lba;
+reg   [3:0] rel_lba;
 
 always @(posedge clk) begin
 	reg old_ack;
@@ -62,7 +59,14 @@ always @(posedge clk) begin
 	reg saving = 0;
 
 	old_change <= change;
-	if(~old_change & change) ready <= 1;
+	if(~old_change & change) begin
+		ready <= mount;
+		cur_track <= 'b111111;
+		busy  <= 0;
+		sd_rd <= 0;
+		sd_wr <= 0;
+		saving<= 0;
+	end
 
 	old_ack <= sd_ack;
 	if(sd_ack) {sd_rd,sd_wr} <= 0;
@@ -116,6 +120,21 @@ always @(posedge clk) begin
 			busy <= 1;
 		end
 	end
+end
+
+// Dual port track buffer
+reg   [7:0] track_ram[13*512];
+
+// IO controller side
+always @(posedge clk) begin
+	sd_buff_din <= track_ram[{rel_lba, sd_buff_addr}];
+	if (sd_buff_wr) track_ram[{rel_lba, sd_buff_addr}] <= sd_buff_dout;
+end
+
+// Disk controller side
+always @(posedge clk) begin
+	ram_do <= track_ram[ram_addr];
+	if (ram_we) track_ram[ram_addr] <= ram_di;
 end
 
 endmodule

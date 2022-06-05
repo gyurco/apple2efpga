@@ -2,10 +2,11 @@
 --
 -- Disk II emulator
 --
--- This is read-only and only feeds "pre-nibblized" data to the processor
--- It has a single-track buffer and only supports one drive (1).
+-- This feeds "pre-nibblized" data to the processor.
+-- It supports one drive (1) only.
 --
 -- Stephen A. Edwards, sedwards@cs.columbia.edu
+-- Write support by (c)2022 Gyorgy Szombathelyi
 --
 -------------------------------------------------------------------------------
 --
@@ -44,10 +45,11 @@
 --
 -- Writing
 --   STA $C08F,X   set write mode
+--   CMP $C08C,X   shift byte to disk
 --   ..
 --   LDA DATA
 --   STA $C08D,X   load byte to write
---   STA $C08C,X   write byte to disk
+--   CMP $C08C,X   shift byte to disk
 --
 -- Data bytes must be written in 32 cycle loops.
 --
@@ -68,22 +70,25 @@ use ieee.numeric_std.all;
 
 entity disk_ii is  
   port (
-    CLK_14M        : in std_logic;
-    CLK_2M         : in std_logic;   
-    PHASE_ZERO     : in std_logic;
-    IO_SELECT      : in std_logic;      -- e.g., C600 - C6FF ROM
-    DEVICE_SELECT  : in std_logic;      -- e.g., C0E0 - C0EF I/O locations
-    RESET          : in std_logic;
-    A              : in unsigned(15 downto 0);
-    D_IN           : in unsigned(7 downto 0);  -- From 6502
-    D_OUT          : out unsigned(7 downto 0);  -- To 6502
-    TRACK          : out unsigned(5 downto 0);  -- Current track (0-34)
-    track_addr     : out unsigned(13 downto 0);
-    D1_ACTIVE      : out std_logic;     -- Disk 1 motor on
-    D2_ACTIVE      : out std_logic;     -- Disk 2 motor on
-    ram_write_addr : in unsigned(12 downto 0);  -- Address for track RAM
-    ram_di         : in unsigned(7 downto 0);  -- Data to track RAM
-    ram_we         : in std_logic              -- RAM write enable
+    CLK_14M        : in  std_logic;
+    CLK_2M         : in  std_logic;
+    PHASE_ZERO     : in  std_logic;
+    IO_SELECT      : in  std_logic;             -- e.g., C600 - C6FF ROM
+    DEVICE_SELECT  : in  std_logic;             -- e.g., C0E0 - C0EF I/O locations
+    RESET          : in  std_logic;
+    A              : in  unsigned(15 downto 0);
+    D_IN           : in  unsigned( 7 downto 0); -- From 6502
+    D_OUT          : out unsigned( 7 downto 0); -- To 6502
+    D1_ACTIVE      : out std_logic;             -- Disk 1 motor on
+    D2_ACTIVE      : out std_logic;             -- Disk 2 motor on
+    -- Track buffer interface
+    TRACK          : out unsigned( 5 downto 0); -- Current track (0-34)
+    TRACK_ADDR     : out unsigned(12 downto 0);
+    TRACK_DI       : out unsigned( 7 downto 0);
+    TRACK_DO       : in  unsigned( 7 downto 0);
+    TRACK_WE       : out std_logic;
+    TRACK_BUSY     : in  std_logic;
+    SAVE_TRACK     : out std_logic
     );
 end disk_ii;
 
@@ -101,20 +106,15 @@ architecture rtl of disk_ii is
   -- a unique position to the case, say, when both phase 0 and phase 1 are
   -- on simultaneously.  phase(7 downto 2) is the track number
   signal phase : unsigned(7 downto 0);  -- 0 - 139
+  signal old_phase : unsigned(7 downto 0);  -- 0 - 139
 
-  -- Storage for one track worth of data in "nibblized" form
-  type track_ram is array(0 to 6655) of unsigned(7 downto 0);
-  -- Double-ported RAM for holding a track
-  signal track_memory : track_ram;
-  signal ram_do : unsigned(7 downto 0);
-
-  -- Lower bit indicates whether disk data is "valid" or not
-  -- RAM address is track_byte_addr(14 downto 1)
-  -- This makes it look to the software like new data is constantly
-  -- being read into the shift register, which indicates the data is
-  -- not yet ready.
-  signal track_byte_addr : unsigned(14 downto 0);
-  signal read_disk : std_logic;         -- When C08C accessed
+  signal track_byte_addr : unsigned(12 downto 0);
+  signal read_disk : std_logic;    -- When C08C accessed
+  signal write_reg : std_logic;
+  signal data_reg : unsigned(7 downto 0);
+  signal reset_data_reg : std_logic;
+  signal write_mode : std_logic;        -- When C08E/F accessed
+  signal track_dirty : std_logic;
 
 begin
 
@@ -147,6 +147,7 @@ begin
 
   D1_ACTIVE <= drive_on and not drive2_select;
   D2_ACTIVE <= drive_on and drive2_select;
+  write_mode <= q7;
 
   -- There are two cases:
   --
@@ -166,15 +167,16 @@ begin
   --  0   1   2   3   0
   --
   
-  update_phase : process (CLK_14M)
+  update_phase : process (CLK_14M, reset)
     variable phase_change : integer;
     variable new_phase : integer;
     variable rel_phase : std_logic_vector(3 downto 0);
   begin
-    if rising_edge(CLK_14M) then
       if reset = '1' then
         phase <= TO_UNSIGNED(70, 8);    -- Deliberately odd to test reset
-      else        
+        old_phase <= TO_UNSIGNED(70, 8);
+      elsif rising_edge(CLK_14M) then
+        old_phase <= phase;
         phase_change := 0;
         new_phase := TO_INTEGER(phase);
         rel_phase := motor_phase;
@@ -234,57 +236,93 @@ begin
         end if;
         phase <= TO_UNSIGNED(new_phase, 8);
       end if;      
-    end if;
   end process;
 
-  TRACK <= phase(7 downto 2);
-
-  -- Dual-ported RAM holding the contents of the track
-  track_storage : process (CLK_14M)
+  track_save : process (CLK_14M, reset)
   begin
-    if rising_edge(CLK_14M) then
-      if ram_we = '1' then
-        track_memory(to_integer(ram_write_addr)) <= ram_di;
+    if reset = '1' then
+      SAVE_TRACK <= '0';
+    elsif rising_edge(CLK_14M) then
+      SAVE_TRACK <= '0';
+      if track_dirty = '1' then
+        if TRACK_BUSY = '0' and old_phase /= phase then
+          SAVE_TRACK <= '1';
+        end if;
+      elsif TRACK_BUSY = '0' then
+        TRACK <= phase(7 downto 2);
       end if;
-      ram_do <= track_memory(to_integer(track_byte_addr(14 downto 1)));
     end if;
   end process;
 
-  -- Go to the next byte when the disk is accessed or if the counter times out
+  -- Go to the next byte if the counter times out (read) or when a new byte is written
   read_head : process (CLK_14M, reset)
   variable byte_delay : unsigned(5 downto 0);  -- Accounts for disk spin rate
   begin
     if reset = '1' then
-        track_byte_addr <= (others => '0');
-        byte_delay := (others => '0');
+      track_byte_addr <= (others => '0');
+      byte_delay := (others => '0');
+      track_dirty <= '0';
+      reset_data_reg <= '0';
     elsif rising_edge(CLK_14M) then
+      TRACK_WE <= '0';
+      if TRACK_BUSY = '0' and old_phase /= phase then
+        track_dirty <= '0';
+      end if;
+
       CLK_2M_D <= CLK_2M;
       if CLK_2M = '1' and CLK_2M_D = '0' then
         byte_delay := byte_delay - 1;
-        if (read_disk = '1' and PHASE_ZERO = '1') or byte_delay = 0 then
-          byte_delay := (others => '0');
-          if track_byte_addr = X"33FE" then
-            track_byte_addr <= (others => '0');
-          else
-            track_byte_addr <= track_byte_addr + 1;
+
+        if write_mode = '0' then
+          -- read mode
+          if reset_data_reg = '1' then
+            data_reg <= (others => '0');
+            reset_data_reg <= '0';
+          end if;
+
+          if byte_delay = 0 then
+            data_reg <= TRACK_DO;
+            if track_byte_addr = X"19FF" then
+              track_byte_addr <= (others => '0');
+            else
+              track_byte_addr <= track_byte_addr + 1;
+            end if;
+          end if;
+          if read_disk = '1' and PHASE_ZERO = '1' then
+            reset_data_reg <= '1';
+          end if;
+        else
+          -- write mode
+          if write_reg = '1' then data_reg <= D_IN; end if;
+          if read_disk = '1' and PHASE_ZERO = '1' then
+            track_dirty <= '1';
+            TRACK_WE <= '1';
+            if track_byte_addr = X"19FF" then
+              track_byte_addr <= (others => '0');
+            else
+              track_byte_addr <= track_byte_addr + 1;
+            end if;
           end if;
         end if;
+
       end if;
     end if;
   end process;
 
+  read_disk <= '1' when DEVICE_SELECT = '1' and A(3 downto 0) = x"C" else
+               '0';  -- C08C
+  write_reg <= '1' when DEVICE_SELECT = '1' and A(3 downto 2) = "11" and A(0) = '1' else
+               '0';  -- C08F/D
+
+  D_OUT <= rom_dout when IO_SELECT = '1' else data_reg when q6 = '0' else x"00";
+  TRACK_ADDR <= track_byte_addr;
+  TRACK_DI <= data_reg;
+
+  -- ROM
   rom : entity work.disk_ii_rom port map (
     addr => A(7 downto 0),
     clk  => CLK_14M,
     dout => rom_dout);
 
-  read_disk <= '1' when DEVICE_SELECT = '1' and A(3 downto 0) = x"C" else
-               '0';  -- C08C
 
-  D_OUT <= rom_dout when IO_SELECT = '1' else
-           ram_do when read_disk = '1' and track_byte_addr(0) = '0' else
-           (others => '0');
-
-  track_addr <= track_byte_addr(14 downto 1);
-  
 end rtl;

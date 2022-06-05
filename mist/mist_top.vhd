@@ -82,7 +82,7 @@ architecture datapath of mist_top is
 
   constant CONF_STR : string :=
    "AppleII;;"&
-   "S0,NIB;"&
+   "S0U,NIB;"&
    "O1,CPU Type,6502,65C02;"&
    "O23,Monitor,Color,B&W,Green,Amber;"&
    "OBC,Scanlines,Off,25%,50%,75%;"&
@@ -118,13 +118,14 @@ architecture datapath of mist_top is
             sd_buff_din    : out std_logic_vector(7 downto 0);
             sd_buff_wr     : in  std_logic;
 
-            ram_addr       : out std_logic_vector(12 downto 0);
-            ram_di         : out std_logic_vector(7 downto 0);
-            ram_do         : in  std_logic_vector(7 downto 0);
-            ram_we         : out std_logic;
+            ram_addr       : in  unsigned(12 downto 0);
+            ram_di         : in  unsigned( 7 downto 0);
+            ram_do         : out unsigned( 7 downto 0);
+            ram_we         : in  std_logic;
 
             save_track     : in  std_logic;
             change         : in  std_logic;                     -- Force reload as disk may have changed
+            mount          : in  std_logic;                     -- umount(0)/mount(1)
             track          : in  std_logic_vector(5 downto 0);  -- Track number (0-34)
             busy           : out std_logic;
 
@@ -182,12 +183,16 @@ architecture datapath of mist_top is
   signal reset : std_logic;
 
   signal D1_ACTIVE, D2_ACTIVE : std_logic;
-  signal track_addr : unsigned(13 downto 0);
+  signal TRACK_RAM_BUSY : std_logic;
   signal TRACK_RAM_ADDR : unsigned(12 downto 0);
   signal TRACK_RAM_DI : unsigned(7 downto 0);
+  signal TRACK_RAM_DO : unsigned(7 downto 0);
   signal TRACK_RAM_WE : std_logic;
+  signal SAVE_TRACK : std_logic;
   signal track : unsigned(5 downto 0);
   signal disk_change : std_logic_vector(1 downto 0);
+  signal disk_size : std_logic_vector(63 downto 0);
+  signal disk_mount : std_logic;
 
   signal downl : std_logic := '0';
   signal io_index : std_logic_vector(4 downto 0);
@@ -436,28 +441,34 @@ begin
     A              => ADDR,
     D_IN           => D,
     D_OUT          => DISK_DO,
-    TRACK          => TRACK,
-    TRACK_ADDR     => TRACK_ADDR,
     D1_ACTIVE      => D1_ACTIVE,
     D2_ACTIVE      => D2_ACTIVE,
-    ram_write_addr => TRACK_RAM_ADDR,
-    ram_di         => TRACK_RAM_DI,
-    ram_we         => TRACK_RAM_WE
+    -- track buffer interface
+    TRACK          => TRACK,
+    TRACK_ADDR     => TRACK_RAM_ADDR,
+    TRACK_DO       => TRACK_RAM_DO,
+    TRACK_DI       => TRACK_RAM_DI,
+    TRACK_WE       => TRACK_RAM_WE,
+    TRACK_BUSY     => TRACK_RAM_BUSY,
+    SAVE_TRACK     => SAVE_TRACK
     );
+
+  disk_mount <= '0' when disk_size = x"0000000000000000" else '1';
 
   sdcard_interface: mist_sd_card port map (
     clk       => CLK_14M,
     reset     => reset,
 
-    unsigned(ram_addr) => TRACK_RAM_ADDR, -- out unsigned(13 downto 0);
-    unsigned(ram_di)   => TRACK_RAM_DI,   -- out unsigned(7 downto 0);
-    ram_do   => (others=>'0'),       -- in  unsigned(7 downto 0);
-    ram_we   => TRACK_RAM_WE,
+    ram_addr  => TRACK_RAM_ADDR, -- in unsigned(12 downto 0);
+    ram_di    => TRACK_RAM_DI,   -- in unsigned(7 downto 0);
+    ram_do    => TRACK_RAM_DO,   -- out unsigned(7 downto 0);
+    ram_we    => TRACK_RAM_WE,
 
     track     => std_logic_vector(TRACK),
-    busy          => open,
-    save_track    => '0',
+    busy          => TRACK_RAM_BUSY,
+    save_track    => SAVE_TRACK,
     change        => disk_change(0),
+    mount         => disk_mount,
 
     sd_buff_addr => sd_buff_addr,
     sd_buff_dout => sd_data_out,
@@ -510,9 +521,9 @@ begin
       dac_o 	=> AUDIO_R
       );
 
-  user_io_d : user_io
+  user_io_inst : user_io
     generic map (STRLEN => CONF_STR'length)
-    
+
     port map (
       clk_sys => CLK_14M,
       clk_sd => CLK_14M,
@@ -543,6 +554,7 @@ begin
       sd_din => sd_data_in,
       sd_buff_addr => sd_buff_addr,
       img_mounted => disk_change,
+      img_size => disk_size,
       ps2_kbd_clk => ps2Clk,
       ps2_kbd_data => ps2Data
     );
