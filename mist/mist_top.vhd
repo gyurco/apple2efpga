@@ -173,6 +173,7 @@ architecture datapath of mist_top is
   signal GAMEPORT : std_logic_vector(7 downto 0);
   signal scandoubler_disable : std_logic;
   signal ypbpr : std_logic;
+  signal no_csync : std_logic;
 
   signal K : unsigned(7 downto 0);
   signal read_key : std_logic;
@@ -541,6 +542,7 @@ begin
       BUTTONS => buttons,
       scandoubler_disable => scandoubler_disable,
       ypbpr => ypbpr,
+      no_csync => no_csync,
       -- connection to io controller
       sd_lba  => sd_lba,
       sd_rd   => sd_rd,
@@ -569,6 +571,7 @@ begin
       ce_divider => '1',
       scandoubler_disable => scandoubler_disable,
       ypbpr => ypbpr,
+      no_csync => no_csync,
       rotate => "00",
 
       SPI_DI => SPI_DI,
