@@ -258,6 +258,8 @@ architecture datapath of mist_top is
   signal joyx       : std_logic;
   signal joyy       : std_logic;
   signal pdl_strobe : std_logic;
+  signal open_apple : std_logic;
+  signal closed_apple : std_logic;
 
 begin
 
@@ -297,7 +299,7 @@ begin
   -- GAMEPORT input bits:
   --  7    6    5    4    3   2   1    0
   -- pdl3 pdl2 pdl1 pdl0 pb3 pb2 pb1 casette
-  GAMEPORT <=  "00" & joyy & joyx & "0" & joy(5) & joy(4) & UART_RX;
+  GAMEPORT <=  "00" & joyy & joyx & "0" & (joy(5) or closed_apple) & (joy(4) or open_apple) & UART_RX;
   
   joy_an <= joy_an0(15 downto 0) when status(5)='0' else joy_an1(15 downto 0);
   joy <= joy0(5 downto 0) when status(5)='0' else joy1(5 downto 0);
@@ -429,7 +431,9 @@ begin
     reset    => reset,
     reads    => read_key,
     K        => K,
-    akd      => akd
+    akd      => akd,
+    open_apple => open_apple,
+    closed_apple => closed_apple
     );
 
   disk : entity work.disk_ii port map (
