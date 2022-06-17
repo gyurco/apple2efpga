@@ -123,11 +123,11 @@ architecture datapath of mist_top is
             ram_do         : out unsigned( 7 downto 0);
             ram_we         : in  std_logic;
 
-            save_track     : in  std_logic;
             change         : in  std_logic;                     -- Force reload as disk may have changed
             mount          : in  std_logic;                     -- umount(0)/mount(1)
             track          : in  std_logic_vector(5 downto 0);  -- Track number (0-34)
             busy           : out std_logic;
+            ready          : out std_logic;
 
             clk            : in  std_logic;     -- System clock
             reset          : in  std_logic
@@ -189,11 +189,11 @@ architecture datapath of mist_top is
   signal TRACK_RAM_DI : unsigned(7 downto 0);
   signal TRACK_RAM_DO : unsigned(7 downto 0);
   signal TRACK_RAM_WE : std_logic;
-  signal SAVE_TRACK : std_logic;
   signal track : unsigned(5 downto 0);
   signal disk_change : std_logic_vector(1 downto 0);
   signal disk_size : std_logic_vector(63 downto 0);
   signal disk_mount : std_logic;
+  signal disk_ready : std_logic;
 
   signal downl : std_logic := '0';
   signal io_index : std_logic_vector(4 downto 0);
@@ -443,6 +443,7 @@ begin
     IO_SELECT      => IO_SELECT(6),
     DEVICE_SELECT  => DEVICE_SELECT(6),
     RESET          => reset,
+    DISK_READY     => disk_ready,
     A              => ADDR,
     D_IN           => D,
     D_OUT          => DISK_DO,
@@ -454,8 +455,7 @@ begin
     TRACK_DO       => TRACK_RAM_DO,
     TRACK_DI       => TRACK_RAM_DI,
     TRACK_WE       => TRACK_RAM_WE,
-    TRACK_BUSY     => TRACK_RAM_BUSY,
-    SAVE_TRACK     => SAVE_TRACK
+    TRACK_BUSY     => TRACK_RAM_BUSY
     );
 
   disk_mount <= '0' when disk_size = x"0000000000000000" else '1';
@@ -471,9 +471,9 @@ begin
 
     track     => std_logic_vector(TRACK),
     busy          => TRACK_RAM_BUSY,
-    save_track    => SAVE_TRACK,
     change        => disk_change(0),
     mount         => disk_mount,
+    ready         => disk_ready,
 
     sd_buff_addr => sd_buff_addr,
     sd_buff_dout => sd_data_out,

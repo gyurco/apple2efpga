@@ -76,6 +76,7 @@ entity disk_ii is
     IO_SELECT      : in  std_logic;             -- e.g., C600 - C6FF ROM
     DEVICE_SELECT  : in  std_logic;             -- e.g., C0E0 - C0EF I/O locations
     RESET          : in  std_logic;
+    DISK_READY     : in  std_logic;
     A              : in  unsigned(15 downto 0);
     D_IN           : in  unsigned( 7 downto 0); -- From 6502
     D_OUT          : out unsigned( 7 downto 0); -- To 6502
@@ -87,8 +88,7 @@ entity disk_ii is
     TRACK_DI       : out unsigned( 7 downto 0);
     TRACK_DO       : in  unsigned( 7 downto 0);
     TRACK_WE       : out std_logic;
-    TRACK_BUSY     : in  std_logic;
-    SAVE_TRACK     : out std_logic
+    TRACK_BUSY     : in  std_logic
     );
 end disk_ii;
 
@@ -106,7 +106,6 @@ architecture rtl of disk_ii is
   -- a unique position to the case, say, when both phase 0 and phase 1 are
   -- on simultaneously.  phase(7 downto 2) is the track number
   signal phase : unsigned(7 downto 0);  -- 0 - 139
-  signal old_phase : unsigned(7 downto 0);  -- 0 - 139
 
   signal track_byte_addr : unsigned(12 downto 0);
   signal read_disk : std_logic;    -- When C08C accessed
@@ -114,7 +113,6 @@ architecture rtl of disk_ii is
   signal data_reg : unsigned(7 downto 0);
   signal reset_data_reg : std_logic;
   signal write_mode : std_logic;        -- When C08E/F accessed
-  signal track_dirty : std_logic;
 
 begin
 
@@ -174,9 +172,7 @@ begin
   begin
       if reset = '1' then
         phase <= TO_UNSIGNED(70, 8);    -- Deliberately odd to test reset
-        old_phase <= TO_UNSIGNED(70, 8);
       elsif rising_edge(CLK_14M) then
-        old_phase <= phase;
         phase_change := 0;
         new_phase := TO_INTEGER(phase);
         rel_phase := motor_phase;
@@ -238,21 +234,7 @@ begin
       end if;      
   end process;
 
-  track_save : process (CLK_14M, reset)
-  begin
-    if reset = '1' then
-      SAVE_TRACK <= '0';
-    elsif rising_edge(CLK_14M) then
-      SAVE_TRACK <= '0';
-      if track_dirty = '1' then
-        if TRACK_BUSY = '0' and old_phase /= phase then
-          SAVE_TRACK <= '1';
-        end if;
-      elsif TRACK_BUSY = '0' then
-        TRACK <= phase(7 downto 2);
-      end if;
-    end if;
-  end process;
+  TRACK <= phase(7 downto 2);
 
   -- Go to the next byte if the counter times out (read) or when a new byte is written
   read_head : process (CLK_14M, reset)
@@ -261,16 +243,12 @@ begin
     if reset = '1' then
       track_byte_addr <= (others => '0');
       byte_delay := (others => '0');
-      track_dirty <= '0';
       reset_data_reg <= '0';
     elsif rising_edge(CLK_14M) then
       TRACK_WE <= '0';
-      if TRACK_BUSY = '0' and old_phase /= phase then
-        track_dirty <= '0';
-      end if;
 
       CLK_2M_D <= CLK_2M;
-      if CLK_2M = '1' and CLK_2M_D = '0' then
+      if CLK_2M = '1' and CLK_2M_D = '0' and DISK_READY = '1' then
         byte_delay := byte_delay - 1;
 
         if write_mode = '0' then
@@ -295,8 +273,7 @@ begin
           -- write mode
           if write_reg = '1' then data_reg <= D_IN; end if;
           if read_disk = '1' and PHASE_ZERO = '1' then
-            track_dirty <= '1';
-            TRACK_WE <= '1';
+            TRACK_WE <= not TRACK_BUSY;
             if track_byte_addr = X"19FF" then
               track_byte_addr <= (others => '0');
             else

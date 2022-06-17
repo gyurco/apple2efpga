@@ -35,10 +35,10 @@ module mist_sd_card
 	output  [7:0] sd_buff_din,
 	input         sd_buff_wr,
 
-	input         save_track,
 	input         change,
 	input         mount,
 	input   [5:0] track,
+	output reg    ready = 0,
 
 	input  [12:0] ram_addr,
 	output  [7:0] ram_do,
@@ -55,10 +55,17 @@ reg   [3:0] rel_lba;
 always @(posedge clk) begin
 	reg old_ack;
 	reg [5:0] cur_track = 0;
-	reg old_change, ready = 0;
+	reg old_change;
 	reg saving = 0;
+	reg dirty = 0;
 
 	old_change <= change;
+	old_ack <= sd_ack;
+
+	if(sd_ack) {sd_rd,sd_wr} <= 0;
+
+	if(ready && ram_we) dirty <= 1;
+
 	if(~old_change & change) begin
 		ready <= mount;
 		cur_track <= 'b111111;
@@ -66,19 +73,19 @@ always @(posedge clk) begin
 		sd_rd <= 0;
 		sd_wr <= 0;
 		saving<= 0;
+		dirty <= 0;
 	end
-
-	old_ack <= sd_ack;
-	if(sd_ack) {sd_rd,sd_wr} <= 0;
-
+	else
 	if(reset) begin
 		cur_track <= 'b111111;
 		busy  <= 0;
 		sd_rd <= 0;
 		sd_wr <= 0;
 		saving<= 0;
+		dirty <= 0;
 	end
 	else
+
 	if(busy) begin
 		if(old_ack && ~sd_ack) begin
 			if(rel_lba != 4'd12) begin
@@ -98,28 +105,29 @@ always @(posedge clk) begin
 			else
 			begin
 				busy <= 0;
+				dirty <= 0;
 			end
 		end
 	end
 	else
-	if(ready) begin
-		if(save_track && cur_track != 'b111111) begin
+	if(ready && ((cur_track != track) || (old_change && ~change)))
+		if (dirty && cur_track != 'b111111) begin
 			saving <= 1;
-			lba <= track * 8'd13;
+			lba <= cur_track * 8'd13;
 			rel_lba <= 0;
 			sd_wr <= 1;
 			busy <= 1;
 		end
 		else
-		if((cur_track != track) || (old_change && ~change)) begin
+		begin
 			saving <= 0;
 			cur_track <= track;
 			rel_lba <= 0;
 			lba <= track * 8'd13; //track size = 1a00h
 			sd_rd <= 1;
 			busy <= 1;
+			dirty <= 0;
 		end
-	end
 end
 
 // Dual port track buffer
