@@ -128,6 +128,7 @@ architecture datapath of mist_top is
             track          : in  std_logic_vector(5 downto 0);  -- Track number (0-34)
             busy           : out std_logic;
             ready          : out std_logic;
+            active         : in  std_logic;
 
             clk            : in  std_logic;     -- System clock
             reset          : in  std_logic
@@ -474,6 +475,7 @@ begin
     change        => disk_change(0),
     mount         => disk_mount,
     ready         => disk_ready,
+    active        => D1_ACTIVE,
 
     sd_buff_addr => sd_buff_addr,
     sd_buff_dout => sd_data_out,

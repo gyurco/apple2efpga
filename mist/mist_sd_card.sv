@@ -39,6 +39,7 @@ module mist_sd_card
 	input         mount,
 	input   [5:0] track,
 	output reg    ready = 0,
+	input         active,
 
 	input  [12:0] ram_addr,
 	output  [7:0] ram_do,
@@ -110,7 +111,7 @@ always @(posedge clk) begin
 		end
 	end
 	else
-	if(ready && ((cur_track != track) || (old_change && ~change)))
+	if(ready && ((cur_track != track) || (old_change && ~change) || (dirty && ~active)))
 		if (dirty && cur_track != 'b111111) begin
 			saving <= 1;
 			lba <= cur_track * 8'd13;
