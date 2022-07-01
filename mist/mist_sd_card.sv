@@ -137,7 +137,7 @@ reg   [7:0] track_ram[13*512];
 // IO controller side
 always @(posedge clk) begin
 	sd_buff_din <= track_ram[{rel_lba, sd_buff_addr}];
-	if (sd_buff_wr) track_ram[{rel_lba, sd_buff_addr}] <= sd_buff_dout;
+	if (sd_buff_wr & sd_ack) track_ram[{rel_lba, sd_buff_addr}] <= sd_buff_dout;
 end
 
 // Disk controller side
