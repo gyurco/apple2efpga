@@ -83,6 +83,7 @@ architecture datapath of mist_top is
   constant CONF_STR : string :=
    "AppleII;;"&
    "S0U,NIB;"&
+   "S1U,NIB;"&
    "O1,CPU Type,6502,65C02;"&
    "O23,Monitor,Color,B&W,Green,Amber;"&
    "OBC,Scanlines,Off,25%,50%,75%;"&
@@ -185,16 +186,22 @@ architecture datapath of mist_top is
   signal reset : std_logic;
 
   signal D1_ACTIVE, D2_ACTIVE : std_logic;
-  signal TRACK_RAM_BUSY : std_logic;
-  signal TRACK_RAM_ADDR : unsigned(12 downto 0);
-  signal TRACK_RAM_DI : unsigned(7 downto 0);
-  signal TRACK_RAM_DO : unsigned(7 downto 0);
-  signal TRACK_RAM_WE : std_logic;
-  signal track : unsigned(5 downto 0);
+  signal TRACK1_RAM_BUSY : std_logic;
+  signal TRACK1_RAM_ADDR : unsigned(12 downto 0);
+  signal TRACK1_RAM_DI : unsigned(7 downto 0);
+  signal TRACK1_RAM_DO : unsigned(7 downto 0);
+  signal TRACK1_RAM_WE : std_logic;
+  signal TRACK1 : unsigned(5 downto 0);
+  signal TRACK2_RAM_BUSY : std_logic;
+  signal TRACK2_RAM_ADDR : unsigned(12 downto 0);
+  signal TRACK2_RAM_DI : unsigned(7 downto 0);
+  signal TRACK2_RAM_DO : unsigned(7 downto 0);
+  signal TRACK2_RAM_WE : std_logic;
+  signal TRACK2 : unsigned(5 downto 0);
+  signal DISK_READY : std_logic_vector(1 downto 0);
   signal disk_change : std_logic_vector(1 downto 0);
   signal disk_size : std_logic_vector(63 downto 0);
   signal disk_mount : std_logic;
-  signal disk_ready : std_logic;
 
   signal downl : std_logic := '0';
   signal io_index : std_logic_vector(4 downto 0);
@@ -240,13 +247,19 @@ architecture datapath of mist_top is
   signal sd_lba:  std_logic_vector(31 downto 0);
   signal sd_rd:   std_logic_vector(1 downto 0) := (others => '0');
   signal sd_wr:   std_logic_vector(1 downto 0) := (others => '0');
-  signal sd_ack:  std_logic;
+  signal sd_ack:  std_logic_vector(1 downto 0);
+
+  signal SD_LBA1:  std_logic_vector(31 downto 0);
+  signal SD_LBA2:  std_logic_vector(31 downto 0);
   
   -- data from io controller to sd card emulation
   signal sd_data_in: std_logic_vector(7 downto 0);
   signal sd_data_out: std_logic_vector(7 downto 0);
   signal sd_data_out_strobe:  std_logic;
   signal sd_buff_addr: std_logic_vector(8 downto 0);
+
+  signal SD_DATA_IN1: std_logic_vector(7 downto 0);
+  signal SD_DATA_IN2: std_logic_vector(7 downto 0);
   
   -- sd card emulation
   signal sd_cs:	std_logic;
@@ -444,48 +457,84 @@ begin
     IO_SELECT      => IO_SELECT(6),
     DEVICE_SELECT  => DEVICE_SELECT(6),
     RESET          => reset,
-    DISK_READY     => disk_ready,
+    DISK_READY     => DISK_READY,
     A              => ADDR,
     D_IN           => D,
     D_OUT          => DISK_DO,
     D1_ACTIVE      => D1_ACTIVE,
     D2_ACTIVE      => D2_ACTIVE,
-    -- track buffer interface
-    TRACK          => TRACK,
-    TRACK_ADDR     => TRACK_RAM_ADDR,
-    TRACK_DO       => TRACK_RAM_DO,
-    TRACK_DI       => TRACK_RAM_DI,
-    TRACK_WE       => TRACK_RAM_WE,
-    TRACK_BUSY     => TRACK_RAM_BUSY
+    -- track buffer interface for disk 1
+    TRACK1         => TRACK1,
+    TRACK1_ADDR    => TRACK1_RAM_ADDR,
+    TRACK1_DO      => TRACK1_RAM_DO,
+    TRACK1_DI      => TRACK1_RAM_DI,
+    TRACK1_WE      => TRACK1_RAM_WE,
+    TRACK1_BUSY    => TRACK1_RAM_BUSY,
+    -- track buffer interface for disk 2
+    TRACK2         => TRACK2,
+    TRACK2_ADDR    => TRACK2_RAM_ADDR,
+    TRACK2_DO      => TRACK2_RAM_DO,
+    TRACK2_DI      => TRACK2_RAM_DI,
+    TRACK2_WE      => TRACK2_RAM_WE,
+    TRACK2_BUSY    => TRACK2_RAM_BUSY
     );
 
   disk_mount <= '0' when disk_size = x"0000000000000000" else '1';
+  sd_lba <= SD_LBA2 when sd_rd(1) = '1' or sd_wr(1) = '1' else SD_LBA1;
+  sd_data_in <= SD_DATA_IN2 when sd_ack(1) = '1' else SD_DATA_IN1;
+  
+  sdcard_interface1: mist_sd_card port map (
+    clk          => CLK_14M,
+    reset        => reset,
 
-  sdcard_interface: mist_sd_card port map (
-    clk       => CLK_14M,
-    reset     => reset,
+    ram_addr     => TRACK1_RAM_ADDR, -- in unsigned(12 downto 0);
+    ram_di       => TRACK1_RAM_DI,   -- in unsigned(7 downto 0);
+    ram_do       => TRACK1_RAM_DO,   -- out unsigned(7 downto 0);
+    ram_we       => TRACK1_RAM_WE,
 
-    ram_addr  => TRACK_RAM_ADDR, -- in unsigned(12 downto 0);
-    ram_di    => TRACK_RAM_DI,   -- in unsigned(7 downto 0);
-    ram_do    => TRACK_RAM_DO,   -- out unsigned(7 downto 0);
-    ram_we    => TRACK_RAM_WE,
-
-    track     => std_logic_vector(TRACK),
-    busy          => TRACK_RAM_BUSY,
-    change        => disk_change(0),
-    mount         => disk_mount,
-    ready         => disk_ready,
-    active        => D1_ACTIVE,
+    track        => std_logic_vector(TRACK1),
+    busy         => TRACK1_RAM_BUSY,
+    change       => DISK_CHANGE(0),
+    mount        => disk_mount,
+    ready        => DISK_READY(0),
+    active       => D1_ACTIVE,
 
     sd_buff_addr => sd_buff_addr,
     sd_buff_dout => sd_data_out,
-    sd_buff_din  => sd_data_in,
+    sd_buff_din  => SD_DATA_IN1,
     sd_buff_wr   => sd_data_out_strobe,
 
-    sd_lba  => sd_lba,
-    sd_rd   => sd_rd(0),
-    sd_wr   => sd_wr(0),
-    sd_ack  => sd_ack
+    sd_lba       => SD_LBA1,
+    sd_rd        => sd_rd(0),
+    sd_wr        => sd_wr(0),
+    sd_ack       => sd_ack(0)
+  );
+
+  sdcard_interface2: mist_sd_card port map (
+    clk          => CLK_14M,
+    reset        => reset,
+
+    ram_addr     => TRACK2_RAM_ADDR, -- in unsigned(12 downto 0);
+    ram_di       => TRACK2_RAM_DI,   -- in unsigned(7 downto 0);
+    ram_do       => TRACK2_RAM_DO,   -- out unsigned(7 downto 0);
+    ram_we       => TRACK2_RAM_WE,
+
+    track        => std_logic_vector(TRACK2),
+    busy         => TRACK2_RAM_BUSY,
+    change       => DISK_CHANGE(1),
+    mount        => disk_mount,
+    ready        => DISK_READY(1),
+    active       => D2_ACTIVE,
+
+    sd_buff_addr => sd_buff_addr,
+    sd_buff_dout => sd_data_out,
+    sd_buff_din  => SD_DATA_IN2,
+    sd_buff_wr   => sd_data_out_strobe,
+
+    sd_lba       => SD_LBA2,
+    sd_rd        => sd_rd(1),
+    sd_wr        => sd_wr(1),
+    sd_ack       => sd_ack(1)
   );
 
   LED <= not (D1_ACTIVE or D2_ACTIVE);
@@ -553,7 +602,7 @@ begin
       sd_lba  => sd_lba,
       sd_rd   => sd_rd,
       sd_wr   => sd_wr,
-      sd_ack  => sd_ack,
+      sd_ack_x => sd_ack,
       sd_ack_conf => open,
       sd_sdhc => '1',
       sd_conf => '0',

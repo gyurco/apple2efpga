@@ -3,10 +3,9 @@
 -- Disk II emulator
 --
 -- This feeds "pre-nibblized" data to the processor.
--- It supports one drive (1) only.
 --
--- Stephen A. Edwards, sedwards@cs.columbia.edu
--- Write support by (c)2022 Gyorgy Szombathelyi
+-- Original by Stephen A. Edwards, sedwards@cs.columbia.edu
+-- Write and 2 disks support by (c)2022 Gyorgy Szombathelyi
 --
 -------------------------------------------------------------------------------
 --
@@ -76,19 +75,26 @@ entity disk_ii is
     IO_SELECT      : in  std_logic;             -- e.g., C600 - C6FF ROM
     DEVICE_SELECT  : in  std_logic;             -- e.g., C0E0 - C0EF I/O locations
     RESET          : in  std_logic;
-    DISK_READY     : in  std_logic;
+    DISK_READY     : in  std_logic_vector(1 downto 0);
     A              : in  unsigned(15 downto 0);
     D_IN           : in  unsigned( 7 downto 0); -- From 6502
     D_OUT          : out unsigned( 7 downto 0); -- To 6502
-    D1_ACTIVE      : out std_logic;             -- Disk 1 motor on
-    D2_ACTIVE      : out std_logic;             -- Disk 2 motor on
-    -- Track buffer interface
-    TRACK          : out unsigned( 5 downto 0); -- Current track (0-34)
-    TRACK_ADDR     : out unsigned(12 downto 0);
-    TRACK_DI       : out unsigned( 7 downto 0);
-    TRACK_DO       : in  unsigned( 7 downto 0);
-    TRACK_WE       : out std_logic;
-    TRACK_BUSY     : in  std_logic
+    D1_ACTIVE      : buffer std_logic;             -- Disk 1 motor on
+    D2_ACTIVE      : buffer std_logic;             -- Disk 2 motor on
+    -- Track buffer interface disk 1
+    TRACK1         : out unsigned( 5 downto 0); -- Current track (0-34)
+    TRACK1_ADDR    : out unsigned(12 downto 0);
+    TRACK1_DI      : out unsigned( 7 downto 0);
+    TRACK1_DO      : in  unsigned( 7 downto 0);
+    TRACK1_WE      : out std_logic;
+    TRACK1_BUSY    : in  std_logic;
+    -- Track buffer interface disk 2
+    TRACK2         : out unsigned( 5 downto 0); -- Current track (0-34)
+    TRACK2_ADDR    : out unsigned(12 downto 0);
+    TRACK2_DI      : out unsigned( 7 downto 0);
+    TRACK2_DO      : in  unsigned( 7 downto 0);
+    TRACK2_WE      : out std_logic;
+    TRACK2_BUSY    : in  std_logic
     );
 end disk_ii;
 
@@ -96,11 +102,14 @@ architecture rtl of disk_ii is
 
   signal motor_phase : std_logic_vector(3 downto 0);
   signal drive_on : std_logic;
+  signal drive_real_on : std_logic; -- 1 sec delay for turning off the drive
   signal drive2_select : std_logic;
   signal q6, q7 : std_logic;
   signal CLK_2M_D: std_logic;
 
   signal rom_dout : unsigned(7 downto 0);
+  signal d_out1   : unsigned(7 downto 0);
+  signal d_out2   : unsigned(7 downto 0);
 
   -- Current phase of the head.  This is in half-steps to assign
   -- a unique position to the case, say, when both phase 0 and phase 1 are
@@ -142,149 +151,37 @@ begin
       end if;
     end if;
   end process;
-
-  D1_ACTIVE <= drive_on and not drive2_select;
-  D2_ACTIVE <= drive_on and drive2_select;
-  write_mode <= q7;
-
-  -- There are two cases:
-  --
-  --  Current phase is odd (between two poles)
-  --        |
-  --        V
-  -- -3-2-1 0 1 2 3 
-  --  X   X   X   X
-  --  0   1   2   3
-  --
-  --
-  --  Current phase is even (under a pole)
-  --          |
-  --          V
-  -- -4-3-2-1 0 1 2 3 4
-  --  X   X   X   X   X
-  --  0   1   2   3   0
-  --
   
-  update_phase : process (CLK_14M, reset)
-    variable phase_change : integer;
-    variable new_phase : integer;
-    variable rel_phase : std_logic_vector(3 downto 0);
-  begin
-      if reset = '1' then
-        phase <= TO_UNSIGNED(70, 8);    -- Deliberately odd to test reset
-      elsif rising_edge(CLK_14M) then
-        phase_change := 0;
-        new_phase := TO_INTEGER(phase);
-        rel_phase := motor_phase;
-        case phase(2 downto 1) is
-          when "00" =>
-            rel_phase := rel_phase(1 downto 0) & rel_phase(3 downto 2);
-          when "01" =>
-            rel_phase := rel_phase(2 downto 0) & rel_phase(3);
-          when "10" => null;
-          when "11" =>
-            rel_phase := rel_phase(0) & rel_phase(3 downto 1);
-          when others => null;
-        end case;
-        
-        if phase(0) = '1' then            -- Phase is odd
-          case rel_phase is
-            when "0000" => phase_change := 0;
-            when "0001" => phase_change := -3;
-            when "0010" => phase_change := -1;
-            when "0011" => phase_change := -2;
-            when "0100" => phase_change := 1;
-            when "0101" => phase_change := -1;
-            when "0110" => phase_change := 0;
-            when "0111" => phase_change := -1;
-            when "1000" => phase_change := 3;
-            when "1001" => phase_change := 0;
-            when "1010" => phase_change := 1;
-            when "1011" => phase_change := -3;
-            when "1111" => phase_change := 0;
-            when others => null;
-          end case;
-        else                              -- Phase is even
-          case rel_phase is
-            when "0000" => phase_change := 0;
-            when "0001" => phase_change := -2;
-            when "0010" => phase_change := 0;
-            when "0011" => phase_change := -1;
-            when "0100" => phase_change := 2;
-            when "0101" => phase_change := 0;
-            when "0110" => phase_change := 1;
-            when "0111" => phase_change := 0;
-            when "1000" => phase_change := 0;
-            when "1001" => phase_change := 1;
-            when "1010" => phase_change := 2;
-            when "1011" => phase_change := -2;
-            when "1111" => phase_change := 0;
-            when others => null;
-          end case;
-        end if;
-
-        if new_phase + phase_change <= 0 then
-          new_phase := 0;
-        elsif new_phase + phase_change > 139 then
-          new_phase := 139;
-        else
-          new_phase := new_phase + phase_change;
-        end if;
-        phase <= TO_UNSIGNED(new_phase, 8);
-      end if;      
-  end process;
-
-  TRACK <= phase(7 downto 2);
-
-  -- Go to the next byte if the counter times out (read) or when a new byte is written
-  read_head : process (CLK_14M, reset)
-  variable byte_delay : unsigned(5 downto 0);  -- Accounts for disk spin rate
+  drive_on_delay: process (CLK_14M, reset)
+    variable spindown_delay : unsigned(23 downto 0);  -- Accounts for disk spin rate
+    variable drive_on_old : std_logic;
   begin
     if reset = '1' then
-      track_byte_addr <= (others => '0');
-      byte_delay := (others => '0');
-      reset_data_reg <= '0';
+      spindown_delay := (others => '0');
+      drive_real_on <= '0';
     elsif rising_edge(CLK_14M) then
-      TRACK_WE <= '0';
-
-      CLK_2M_D <= CLK_2M;
-      if CLK_2M = '1' and CLK_2M_D = '0' and DISK_READY = '1' then
-        byte_delay := byte_delay - 1;
-
-        if write_mode = '0' then
-          -- read mode
-          if reset_data_reg = '1' then
-            data_reg <= (others => '0');
-            reset_data_reg <= '0';
-          end if;
-
-          if byte_delay = 0 then
-            data_reg <= TRACK_DO;
-            if track_byte_addr = X"19FF" then
-              track_byte_addr <= (others => '0');
-            else
-              track_byte_addr <= track_byte_addr + 1;
-            end if;
-          end if;
-          if read_disk = '1' and PHASE_ZERO = '1' then
-            reset_data_reg <= '1';
-          end if;
-        else
-          -- write mode
-          if write_reg = '1' then data_reg <= D_IN; end if;
-          if read_disk = '1' and PHASE_ZERO = '1' then
-            TRACK_WE <= not TRACK_BUSY;
-            if track_byte_addr = X"19FF" then
-              track_byte_addr <= (others => '0');
-            else
-              track_byte_addr <= track_byte_addr + 1;
-            end if;
-          end if;
+      if spindown_delay /= 0 then
+        spindown_delay := spindown_delay - 1;
+        if spindown_delay = 0 then
+          drive_real_on <= '0';
         end if;
-
       end if;
+
+      if drive_on = '1' then
+        spindown_delay := (others => '0');
+        drive_real_on <= '1';
+      elsif drive_on_old = '1' then
+        spindown_delay := to_unsigned(14000000, 24); -- 1 sec delay
+      end if;
+
+      drive_on_old := drive_on;
+
     end if;
   end process;
+
+  D1_ACTIVE <= drive_real_on and not drive2_select;
+  D2_ACTIVE <= drive_real_on and drive2_select;
+  write_mode <= q7;
 
   read_disk <= '1' when DEVICE_SELECT = '1' and A(3 downto 0) = x"C" else
                '0';  -- C08C
@@ -292,14 +189,58 @@ begin
                '0';  -- C08F/D
 
   D_OUT <= rom_dout when IO_SELECT = '1' else data_reg when q6 = '0' else x"00";
-  TRACK_ADDR <= track_byte_addr;
-  TRACK_DI <= data_reg;
+  data_reg <= d_out1 when drive2_select = '0' else d_out2;
+
+  drive_1 : entity work.drive_ii
+  port map (
+    CLK_14M        => CLK_14M,
+    CLK_2M         => CLK_2M,
+    PHASE_ZERO     => PHASE_ZERO,
+    RESET          => RESET,
+    DISK_READY     => DISK_READY(0),
+    D_IN           => D_IN,         -- From 6502
+    D_OUT          => d_out1,       -- To 6502
+    DISK_ACTIVE    => D1_ACTIVE,    -- Disk motor on
+    MOTOR_PHASE    => motor_phase,
+    WRITE_MODE     => write_mode,
+    READ_DISK      => read_disk,    -- C08C
+    WRITE_REG      => write_reg,    -- C08F/D
+    -- Track buffer interface
+    TRACK          => TRACK1, -- Current track (0-34)
+    TRACK_ADDR     => TRACK1_ADDR,
+    TRACK_DI       => TRACK1_DI,
+    TRACK_DO       => TRACK1_DO,
+    TRACK_WE       => TRACK1_WE,
+    TRACK_BUSY     => TRACK1_BUSY
+  );
+
+  drive_2 : entity work.drive_ii
+  port map (
+    CLK_14M        => CLK_14M,
+    CLK_2M         => CLK_2M,
+    PHASE_ZERO     => PHASE_ZERO,
+    RESET          => RESET,
+    DISK_READY     => DISK_READY(1),
+    D_IN           => D_IN,         -- From 6502
+    D_OUT          => d_out2,       -- To 6502
+    DISK_ACTIVE    => D2_ACTIVE,    -- Disk motor on
+    MOTOR_PHASE    => motor_phase,
+    WRITE_MODE     => write_mode,
+    READ_DISK      => read_disk,    -- C08C
+    WRITE_REG      => write_reg,    -- C08F/D
+    -- Track buffer interface
+    TRACK          => TRACK2, -- Current track (0-34)
+    TRACK_ADDR     => TRACK2_ADDR,
+    TRACK_DI       => TRACK2_DI,
+    TRACK_DO       => TRACK2_DO,
+    TRACK_WE       => TRACK2_WE,
+    TRACK_BUSY     => TRACK2_BUSY
+  );
 
   -- ROM
   rom : entity work.disk_ii_rom port map (
     addr => A(7 downto 0),
     clk  => CLK_14M,
     dout => rom_dout);
-
 
 end rtl;

@@ -315,7 +315,7 @@ set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_COLOR 2147039 -section_id Top
 
 set_global_assignment -name ENABLE_SIGNALTAP OFF
-set_global_assignment -name USE_SIGNALTAP_FILE out/video.stp
+set_global_assignment -name USE_SIGNALTAP_FILE out/disk.stp
 set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
 set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_HS
@@ -337,6 +337,7 @@ set_global_assignment -name VHDL_FILE ../PS2_Ctrl.vhd
 set_global_assignment -name VHDL_FILE ../keyboard.vhd
 set_global_assignment -name VHDL_FILE ../disk_ii_rom.vhd
 set_global_assignment -name VHDL_FILE ../disk_ii.vhd
+set_global_assignment -name VHDL_FILE ../drive_ii.vhd
 set_global_assignment -name VHDL_FILE ../apple2.vhd
 set_global_assignment -name VHDL_FILE ../mockingboard/mockingboard.vhd
 set_global_assignment -name VHDL_FILE ../mockingboard/via6522.vhd
