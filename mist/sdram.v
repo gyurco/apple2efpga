@@ -34,7 +34,7 @@ module sdram (
 	output 				sd_cas,     // columns address select
 
 	// cpu/chipset interface
-	input 		 		init,			// init signal after FPGA config to initialize RAM
+	input 		 		init_n,			// init signal after FPGA config to initialize RAM
 	input 		 		clk,			// sdram is accessed at up to 128MHz
 	input					clkref,		// reference clock to sync to
 	
@@ -90,8 +90,8 @@ end
 // wait 1ms (32 8Mhz cycles) after FPGA config is done before going
 // into normal operation. Initialize the ram in the last 16 reset cycles (cycles 15-0)
 reg [4:0] reset;
-always @(posedge clk) begin
-	if(init)	reset <= 5'h1f;
+always @(posedge clk, negedge init_n) begin
+	if(!init_n)	reset <= 5'h1f;
 	else if((q == STATE_LAST) && (reset != 0))
 		reset <= reset - 5'd1;
 end

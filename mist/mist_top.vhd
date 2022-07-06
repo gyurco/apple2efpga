@@ -30,7 +30,7 @@ entity mist_top is
   port (
     -- Clocks
     
-    CLOCK_27    : in std_logic_vector(1 downto 0); -- 27 MHz
+    CLOCK_27    : in std_logic; -- 27 MHz
 
 
     -- SDRAM
@@ -145,7 +145,7 @@ architecture datapath of mist_top is
           sd_we : out std_logic;
           sd_ras : out std_logic;
           sd_cas : out std_logic;
-          init : in std_logic;
+          init_n : in std_logic;
           clk : in std_logic;
           clkref : in std_logic;
           din : in std_logic_vector(7 downto 0);
@@ -302,7 +302,7 @@ begin
   pll : entity work.mist_clk 
   port map (
     areset => '0',
-    inclk0 => CLOCK_27(0),
+    inclk0 => CLOCK_27,
     c0     => CLK_28M,
     c1     => CLK_14M,
     locked => pll_locked
@@ -373,7 +373,7 @@ begin
               sd_cas => SDRAM_nCAS,
               clk => CLK_28M,
               clkref => CLK_2M,
-              init => not pll_locked,
+              init_n => pll_locked,
               din => ram_di,
               addr => ram_addr,
               we => ram_we,
