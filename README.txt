@@ -4,7 +4,7 @@ Original for the DE2: http://www1.cs.columbia.edu/~sedwards/apple2fpga/
 Port for the MiST: http://ws0.org/tag/apple2/
 
 Features:
-- Disk loading via osd (no write support yet)
+- Disk .NIB file selection via OSD (read/write)
 - Tape loading via the UART RX pin
 - Selectable 6502 or 65C02 CPU
 - Joystick support
