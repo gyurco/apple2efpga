@@ -625,7 +625,7 @@ begin
     port map (
       clk_sys => CLK_28M,
       scanlines   => status(12 downto 11),
-      ce_divider => '1',
+      ce_divider => "001",
       scandoubler_disable => scandoubler_disable,
       ypbpr => ypbpr,
       no_csync => no_csync,
