@@ -82,10 +82,11 @@ architecture datapath of mist_top is
 
   constant CONF_STR : string :=
    "AppleII;;"&
-   "S0U,NIB;"&
-   "S1U,NIB;"&
+   "S0U,NIB,Load Disk 0;"&
+   "S1U,NIB,Load Disk 1;"&
    "O1,CPU Type,6502,65C02;"&
    "O23,Monitor,Color,B&W,Green,Amber;"&
+   "O4,Machine Type,NTSC,PAL;"&
    "OBC,Scanlines,Off,25%,50%,75%;"&
    "O5,Joysticks,Normal,Swapped;"&
    "O6,Mockingboard S4,off,on;"&
@@ -390,6 +391,7 @@ begin
 
   core : entity work.apple2 port map (
     CLK_14M        => CLK_14M,
+    PALMODE        => status(4),
     CLK_2M         => CLK_2M,
     PHASE_ZERO     => PHASE_ZERO,
     PHASE_ZERO_R   => PHASE_ZERO_R,

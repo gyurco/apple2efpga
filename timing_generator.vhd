@@ -18,6 +18,7 @@ entity timing_generator is
   
   port (
     CLK_14M        : in  std_logic;           -- 14.31818 MHz master clock
+    PALMODE        : in  std_logic := '0';    -- PAL/NTSC selection
     VID7M          : buffer std_logic := '0';
     Q3	           : buffer std_logic := '0'; -- 2 MHz signal in phase with PHI0
     RAS_N          : buffer std_logic := '0';
@@ -57,6 +58,7 @@ architecture rtl of timing_generator is
 
   signal H : unsigned(6 downto 0) := "0000000";
   signal V : unsigned(8 downto 0) := "011111010";
+  signal V_RESET : unsigned(8 downto 0);
   signal COLOR_DELAY_N : std_logic;
 
   signal CLK_7M: std_logic;
@@ -167,6 +169,8 @@ begin
     end process;
 
     -- Horizontal and vertical counters
+    V_RESET <= "011111010" when PALMODE = '0' else "011001000";
+
     HVCOUNTERS: process (CLK_14M)
     begin
         if rising_edge(CLK_14M) then
@@ -177,8 +181,8 @@ begin
                     H <= H + 1;
                     if H = "1111111" then
                         V <= V + 1;
+                        if V = "111111111" then V <= V_RESET; end if;
                     end if;
-                    if V = "111111111" then V <= "011111010"; end if;
                 end if;
             end if;
         end if;
