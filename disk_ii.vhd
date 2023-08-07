@@ -81,6 +81,7 @@ entity disk_ii is
     D_OUT          : out unsigned( 7 downto 0); -- To 6502
     D1_ACTIVE      : buffer std_logic;             -- Disk 1 motor on
     D2_ACTIVE      : buffer std_logic;             -- Disk 2 motor on
+    WP             : in  std_logic_vector(1 downto 0);
     -- Track buffer interface disk 1
     TRACK1         : out unsigned( 5 downto 0); -- Current track (0-34)
     TRACK1_ADDR    : out unsigned(12 downto 0);
@@ -122,6 +123,7 @@ architecture rtl of disk_ii is
   signal data_reg : unsigned(7 downto 0);
   signal reset_data_reg : std_logic;
   signal write_mode : std_logic;        -- When C08E/F accessed
+  signal wp_wire : std_logic;
 
 begin
 
@@ -187,8 +189,9 @@ begin
                '0';  -- C08C
   write_reg <= '1' when DEVICE_SELECT = '1' and A(3 downto 2) = "11" and A(0) = '1' else
                '0';  -- C08F/D
+  wp_wire <= motor_phase(1) or (WP(0) and not drive2_select) or (WP(1) and drive2_select);
 
-  D_OUT <= rom_dout when IO_SELECT = '1' else data_reg when q6 = '0' else x"00";
+  D_OUT <= rom_dout when IO_SELECT = '1' else data_reg when q6 = '0' else wp_wire & "000"&x"0";
   data_reg <= d_out1 when drive2_select = '0' else d_out2;
 
   drive_1 : entity work.drive_ii

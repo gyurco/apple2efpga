@@ -84,6 +84,7 @@ architecture datapath of mist_top is
    "AppleII;;"&
    "S0U,NIB,Load Disk 0;"&
    "S1U,NIB,Load Disk 1;"&
+   "O89,Write Protect,None,Disk 0,Disk 1, Disk 0&1;"&
    "O1,CPU Type,6502,65C02;"&
    "O23,Monitor,Color,B&W,Green,Amber;"&
    "O4,Machine Type,NTSC,PAL;"&
@@ -239,6 +240,8 @@ architecture datapath of mist_top is
   signal status     : std_logic_vector(63 downto 0);
   signal ps2Clk     : std_logic;
   signal ps2Data    : std_logic;
+
+  signal st_wp      : std_logic_vector( 1 downto 0);
   
   signal psg_audio_l : unsigned(9 downto 0);
   signal psg_audio_r : unsigned(9 downto 0);
@@ -278,6 +281,7 @@ architecture datapath of mist_top is
 
 begin
 
+  st_wp <= status(9 downto 8);
 
   -- In the Apple ][, this was a 555 timer
   power_on : process(CLK_14M)
@@ -465,6 +469,7 @@ begin
     D_OUT          => DISK_DO,
     D1_ACTIVE      => D1_ACTIVE,
     D2_ACTIVE      => D2_ACTIVE,
+    WP             => st_wp,
     -- track buffer interface for disk 1
     TRACK1         => TRACK1,
     TRACK1_ADDR    => TRACK1_RAM_ADDR,
