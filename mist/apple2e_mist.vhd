@@ -25,11 +25,16 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use work.mist.all;
 
-entity mist_top is
-
+entity apple2e_mist is
+  generic
+  (
+    VGA_BITS   : integer := 6;
+    USE_AUDIO_IN : boolean := false;
+    BUILD_DATE : string :=""
+  );
   port (
     -- Clocks
-    
+
     CLOCK_27    : in std_logic; -- 27 MHz
 
 
@@ -59,26 +64,29 @@ entity mist_top is
 
     VGA_HS,                                             -- H_SYNC
     VGA_VS : out std_logic;                             -- V_SYNC
-    VGA_R,                                              -- Red[5:0]
-    VGA_G,                                              -- Green[5:0]
-    VGA_B : out std_logic_vector(5 downto 0);           -- Blue[5:0]
+    VGA_R,                                              -- Red[x:0]
+    VGA_G,                                              -- Green[x:0]
+    VGA_B : out std_logic_vector(VGA_BITS-1 downto 0);  -- Blue[x:0]
     
     -- Audio
     AUDIO_L,
     AUDIO_R : out std_logic;
-    
+
+    AUDIO_IN : in std_logic;
+
     -- UART
 
     UART_RX : in std_logic;
+    UART_TX : out std_logic;
 
     -- LEDG
     LED : out std_logic
 
     );
-  
-end mist_top;
 
-architecture datapath of mist_top is
+end apple2e_mist;
+
+architecture datapath of apple2e_mist is
 
   constant CONF_STR : string :=
    "AppleII;;"&
@@ -279,6 +287,8 @@ architecture datapath of mist_top is
   signal open_apple : std_logic;
   signal closed_apple : std_logic;
 
+  signal ear_in : std_logic;
+
 begin
 
   st_wp <= status(9 downto 8);
@@ -318,7 +328,8 @@ begin
   -- GAMEPORT input bits:
   --  7    6    5    4    3   2   1    0
   -- pdl3 pdl2 pdl1 pdl0 pb3 pb2 pb1 casette
-  GAMEPORT <=  "00" & joyy & joyx & "0" & (joy(5) or closed_apple) & (joy(4) or open_apple) & UART_RX;
+	ear_in <= AUDIO_IN when USE_AUDIO_IN else UART_RX;
+  GAMEPORT <=  "00" & joyy & joyx & "0" & (joy(5) or closed_apple) & (joy(4) or open_apple) & ear_in;
   
   joy_an <= joy_an0(15 downto 0) when status(5)='0' else joy_an1(15 downto 0);
   joy <= joy0(5 downto 0) when status(5)='0' else joy1(5 downto 0);
@@ -625,8 +636,10 @@ begin
 
  mist_video: work.mist.mist_video
     generic map(
-	  SD_HCNT_WIDTH => 10
-	)
+      COLOR_DEPTH => 8,
+      SD_HCNT_WIDTH => 10,
+      OUT_COLOR_DEPTH => VGA_BITS
+    )
     port map (
       clk_sys => CLK_28M,
       scanlines   => status(12 downto 11),
@@ -640,9 +653,9 @@ begin
       SPI_SCK => SPI_SCK,
       SPI_SS3 => SPI_SS3,
 
-      R => std_logic_vector(r)(7 downto 2),
-      G => std_logic_vector(g)(7 downto 2),
-      B => std_logic_vector(b)(7 downto 2),
+      R => std_logic_vector(r),
+      G => std_logic_vector(g),
+      B => std_logic_vector(b),
       HSync => hsync,
       VSync => vsync,
       VGA_HS => VGA_HS,
