@@ -235,6 +235,6 @@ begin
 
   VGA_CLK <= clk_14m;
 
-  VGA_BLANK <= video_active;
+  VGA_BLANK <= not video_active;
 
 end rtl;
