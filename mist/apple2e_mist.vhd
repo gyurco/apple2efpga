@@ -142,6 +142,7 @@ architecture datapath of apple2e_mist is
    "O89,Write Protect,None,Disk 0,Disk 1, Disk 0&1;"&
    "O1,CPU Type,6502,65C02;"&
    "O23,Monitor,Color,B&W,Green,Amber;"&
+   "ODE,Color palette,//e,IIgs,AppleWin,apple2fpga;"&
    "O4,Machine Type,NTSC,PAL;"&
    "OBC,Scanlines,Off,25%,50%,75%;"&
    "O5,Joysticks,Normal,Swapped;"&
@@ -242,6 +243,7 @@ architecture datapath of apple2e_mist is
   signal COLOR_LINE : std_logic;
   signal COLOR_LINE_CONTROL : std_logic;
   signal SCREEN_MODE : std_logic_vector(1 downto 0);
+  signal COLOR_PALETTE : std_logic_vector(1 downto 0);
   signal GAMEPORT : std_logic_vector(7 downto 0);
   signal scandoubler_disable : std_logic;
   signal ypbpr : std_logic;
@@ -442,6 +444,7 @@ begin
 
   COLOR_LINE_CONTROL <= COLOR_LINE and not (status(2) or status(3));  -- Color or B&W mode
   SCREEN_MODE <= status(3 downto 2); -- 00: Color, 01: B&W, 10:Green, 11: Amber
+  COLOR_PALETTE <= status(14 downto 13);
   
   -- sdram interface
   SDRAM_CKE <= '1';
@@ -514,6 +517,7 @@ begin
     VIDEO      => VIDEO,
     COLOR_LINE => COLOR_LINE_CONTROL,
     SCREEN_MODE => SCREEN_MODE,
+    COLOR_PALETTE => COLOR_PALETTE,
     HBL        => HBL,
     VBL        => VBL,
     VGA_CLK    => open,
@@ -797,7 +801,7 @@ hdmi_block : if HDMI generate
     USE_BLANKS => true,
     OUT_COLOR_DEPTH => 8,
     BIG_OSD => BIG_OSD,
-		VIDEO_CLEANER => true
+    VIDEO_CLEANER => true
   )
   port map (
     clk_sys => CLK_28M,
