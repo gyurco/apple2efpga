@@ -148,7 +148,8 @@ architecture datapath of apple2e_mist is
    "O5,Joysticks,Normal,Swapped;"&
    "O6,Mockingboard S4,off,on;"&
    SEP&
-   "T7,Cold reset;";
+   "T7,Cold reset;"&
+   "V,v"&BUILD_DATE;
 
   component mist_sd_card
     port (
