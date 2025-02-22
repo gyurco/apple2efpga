@@ -338,6 +338,8 @@ set_global_assignment -name VHDL_FILE ../keyboard.vhd
 set_global_assignment -name VHDL_FILE ../disk_ii_rom.vhd
 set_global_assignment -name VHDL_FILE ../disk_ii.vhd
 set_global_assignment -name VHDL_FILE ../drive_ii.vhd
+set_global_assignment -name VHDL_FILE ../ide_cffa_rom.vhd
+set_global_assignment -name VHDL_FILE ../ide_cffa.vhd
 set_global_assignment -name VHDL_FILE ../apple2.vhd
 set_global_assignment -name VHDL_FILE ../mockingboard/mockingboard.vhd
 set_global_assignment -name VHDL_FILE ../mockingboard/via6522.vhd

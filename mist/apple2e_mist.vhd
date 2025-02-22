@@ -58,9 +58,10 @@ entity apple2e_mist is
     -- SPI
     SPI_SCK : in std_logic;
     SPI_DI : in std_logic;
-    SPI_DO : out std_logic;
+    SPI_DO : inout std_logic;
     SPI_SS2 : in std_logic;
     SPI_SS3 : in std_logic;
+    SPI_SS4 : in std_logic;
     CONF_DATA0 : in std_logic;
 
     -- VGA output
@@ -113,10 +114,10 @@ architecture datapath of apple2e_mist is
   function USER_IO_FEAT return std_logic_vector is
   variable feat: std_logic_vector(31 downto 0);
   begin
-    feat := x"00000000";
-	  if BIG_OSD then feat := feat or x"00002000"; end if;
-	  if HDMI    then feat := feat or x"00004000"; end if;
-	  return feat;
+    feat := x"00000050"; -- Primary master/slave IDE
+    if BIG_OSD then feat := feat or x"00002000"; end if;
+    if HDMI    then feat := feat or x"00004000"; end if;
+    return feat;
   end function;
 
   function to_slv(s: string) return std_logic_vector is 
@@ -136,8 +137,8 @@ architecture datapath of apple2e_mist is
 
   constant CONF_STR : string :=
    "AppleII;;"&
-   "S0U,NIB,Load Disk 0;"&
-   "S1U,NIB,Load Disk 1;"&
+   "S2U,NIB,Load Disk 0;"&
+   "S3U,NIB,Load Disk 1;"&
    SEP&
    "O89,Write Protect,None,Disk 0,Disk 1, Disk 0&1;"&
    "O1,CPU Type,6502,65C02;"&
@@ -228,12 +229,87 @@ architecture datapath of apple2e_mist is
   );
   end component spdif;
 
+  component data_io 
+  generic
+  (
+    ENABLE_IDE : boolean := true
+  );
+  port
+  (
+    clk_sys   : in std_logic;
+    SPI_SCK, SPI_SS2, SPI_SS4, SPI_DI : in std_logic;
+    SPI_DO         : inout std_logic;
+    clkref_n       : in  std_logic := '0';
+    ioctl_download : out std_logic;
+    ioctl_index    : out std_logic_vector(7 downto 0);
+    ioctl_wr       : out std_logic;
+    ioctl_addr     : out std_logic_vector(24 downto 0);
+    ioctl_dout     : out std_logic_vector(7 downto 0);
+
+    -- IDE
+    hdd_clk        : in  std_logic;
+    hdd_cmd_req    : in  std_logic;
+    hdd_cdda_req   : in  std_logic;
+    hdd_dat_req    : in  std_logic;
+    hdd_cdda_wr    : out std_logic;
+    hdd_status_wr  : out std_logic;
+    hdd_addr       : out std_logic_vector(2 downto 0);
+    hdd_wr         : out std_logic;
+
+    hdd_data_out   : out std_logic_vector(15 downto 0);
+    hdd_data_in    : in  std_logic_vector(15 downto 0);
+    hdd_data_rd    : out std_logic;
+    hdd_data_wr    : out std_logic;
+
+    -- IDE config
+    hdd0_ena       : out std_logic_vector(1 downto 0);
+    hdd1_ena       : out std_logic_vector(1 downto 0)
+  );
+  end component data_io;
+
+  component ide
+  port
+  (
+    clk           : in  std_logic;
+    clk_en        : in  std_logic;
+    reset         : in  std_logic;
+    address_in    : in  std_logic_vector(2 downto 0);
+    sel_secondary : in  std_logic;
+    data_in       : in  std_logic_vector(15 downto 0);
+    data_out      : out std_logic_vector(15 downto 0);
+    data_oe       : out std_logic;
+    rd            : in  std_logic;
+    hwr           : in  std_logic;
+    lwr           : in  std_logic;
+    sel_ide       : in  std_logic;
+    intreq        : out std_logic_vector(1 downto 0);
+    intreq_ack    : in  std_logic_vector(1 downto 0);
+    nrdy          : out std_logic;
+    hdd0_ena      : in  std_logic_vector(1 downto 0);
+    hdd1_ena      : in  std_logic_vector(1 downto 0);
+    fifo_rd       : out std_logic;
+    fifo_wr       : out std_logic;
+
+    hdd_cmd_req   : out std_logic;
+    hdd_dat_req   : out std_logic;
+    hdd_status_wr : in  std_logic;
+    hdd_addr      : in  std_logic_vector(2 downto 0);
+    hdd_wr        : in  std_logic;
+    hdd_data_out  : in  std_logic_vector(15 downto 0);
+    hdd_data_in   : out std_logic_vector(15 downto 0);
+    hdd_data_rd   : in  std_logic;
+    hdd_data_wr   : in  std_logic
+  );
+  end component ide;
+  
   signal CLK_28M, CLK_14M, CLK_2M, CLK_2M_D, PHASE_ZERO, PHASE_ZERO_R, PHASE_ZERO_F : std_logic;
   signal clk_div : unsigned(1 downto 0);
   signal IO_SELECT, DEVICE_SELECT : std_logic_vector(7 downto 0);
+  signal IO_STROBE : std_logic;
   signal ADDR : unsigned(15 downto 0);
   signal D, PD: unsigned(7 downto 0);
-  signal DISK_DO, PSG_DO : unsigned(7 downto 0);
+  signal DISK_DO, PSG_DO, IDE_DO : unsigned(7 downto 0);
+  signal IDE_OE : std_logic;
   signal DO : std_logic_vector(15 downto 0);
   signal aux : std_logic;
   signal cpu_we : std_logic;
@@ -272,7 +348,7 @@ architecture datapath of apple2e_mist is
   signal TRACK2_RAM_WE : std_logic;
   signal TRACK2 : unsigned(5 downto 0);
   signal DISK_READY : std_logic_vector(1 downto 0);
-  signal disk_change : std_logic_vector(1 downto 0);
+  signal disk_change : std_logic_vector(3 downto 0);
   signal disk_size : std_logic_vector(63 downto 0);
   signal disk_mount : std_logic;
 
@@ -330,9 +406,9 @@ architecture datapath of apple2e_mist is
 
   -- signals to connect sd card emulation with io controller
   signal sd_lba:  std_logic_vector(31 downto 0);
-  signal sd_rd:   std_logic_vector(1 downto 0) := (others => '0');
-  signal sd_wr:   std_logic_vector(1 downto 0) := (others => '0');
-  signal sd_ack:  std_logic_vector(1 downto 0);
+  signal sd_rd:   std_logic_vector(3 downto 0) := (others => '0');
+  signal sd_wr:   std_logic_vector(3 downto 0) := (others => '0');
+  signal sd_ack:  std_logic_vector(3 downto 0);
 
   signal SD_LBA1:  std_logic_vector(31 downto 0);
   signal SD_LBA2:  std_logic_vector(31 downto 0);
@@ -345,13 +421,25 @@ architecture datapath of apple2e_mist is
 
   signal SD_DATA_IN1: std_logic_vector(7 downto 0);
   signal SD_DATA_IN2: std_logic_vector(7 downto 0);
-  
-  -- sd card emulation
-  signal sd_cs:	std_logic;
-  signal sd_sck:	std_logic;
-  signal sd_sdi:	std_logic;
-  signal sd_sdo:	std_logic;
-  
+
+  -- IDE (CFFA) signals
+  signal hdd_cmd_req   : std_logic;
+  signal hdd_dat_req   : std_logic;
+  signal hdd_status_wr : std_logic;
+  signal hdd_addr      : std_logic_vector(2 downto 0);
+  signal hdd_wr        : std_logic;
+  signal hdd_data_out  : std_logic_vector(15 downto 0);
+  signal hdd_data_in   : std_logic_vector(15 downto 0);
+  signal hdd_data_rd   : std_logic;
+  signal hdd_data_wr   : std_logic;
+  signal hdd0_ena      : std_logic_vector(1 downto 0);
+  signal hdd1_ena      : std_logic_vector(1 downto 0);
+
+  signal ide_cs        : std_logic;
+  signal ide_addr      : std_logic_vector(2 downto 0);
+  signal ide_dout      : std_logic_vector(15 downto 0);
+  signal ide_din       : std_logic_vector(15 downto 0);
+
   signal pll_locked : std_logic;
   signal sdram_dqm: std_logic_vector(1 downto 0);
   signal joyx       : std_logic;
@@ -476,7 +564,7 @@ begin
   ram_addr <= "000000000" & std_logic_vector(a_ram) when status(7) = '0' else std_logic_vector(to_unsigned(1012,ram_addr'length)); -- $3F4
   ram_di   <= std_logic_vector(D) when status(7) = '0' else "00000000";
 
-  PD <= PSG_DO when IO_SELECT(4) = '1' else DISK_DO;
+  PD <= PSG_DO when IO_SELECT(4) = '1' else IDE_DO when IDE_OE = '1' else DISK_DO;
 
   core : entity work.apple2 port map (
     CLK_14M        => CLK_14M,
@@ -510,6 +598,7 @@ begin
     PDL_strobe     => pdl_strobe,
     IO_SELECT      => IO_SELECT,
     DEVICE_SELECT  => DEVICE_SELECT,
+    IO_STROBE      => IO_STROBE,
     speaker        => audio
     );
 
@@ -573,8 +662,8 @@ begin
     );
 
   disk_mount <= '0' when disk_size = x"0000000000000000" else '1';
-  sd_lba <= SD_LBA2 when sd_rd(1) = '1' or sd_wr(1) = '1' else SD_LBA1;
-  sd_data_in <= SD_DATA_IN2 when sd_ack(1) = '1' else SD_DATA_IN1;
+  sd_lba <= SD_LBA2 when sd_rd(3) = '1' or sd_wr(3) = '1' else SD_LBA1;
+  sd_data_in <= SD_DATA_IN2 when sd_ack(3) = '1' else SD_DATA_IN1;
   
   sdcard_interface1: mist_sd_card port map (
     clk          => CLK_14M,
@@ -587,7 +676,7 @@ begin
 
     track        => std_logic_vector(TRACK1),
     busy         => TRACK1_RAM_BUSY,
-    change       => DISK_CHANGE(0),
+    change       => DISK_CHANGE(2),
     mount        => disk_mount,
     ready        => DISK_READY(0),
     active       => D1_ACTIVE,
@@ -598,9 +687,9 @@ begin
     sd_buff_wr   => sd_data_out_strobe,
 
     sd_lba       => SD_LBA1,
-    sd_rd        => sd_rd(0),
-    sd_wr        => sd_wr(0),
-    sd_ack       => sd_ack(0)
+    sd_rd        => sd_rd(2),
+    sd_wr        => sd_wr(2),
+    sd_ack       => sd_ack(2)
   );
 
   sdcard_interface2: mist_sd_card port map (
@@ -614,7 +703,7 @@ begin
 
     track        => std_logic_vector(TRACK2),
     busy         => TRACK2_RAM_BUSY,
-    change       => DISK_CHANGE(1),
+    change       => DISK_CHANGE(3),
     mount        => disk_mount,
     ready        => DISK_READY(1),
     active       => D2_ACTIVE,
@@ -625,9 +714,9 @@ begin
     sd_buff_wr   => sd_data_out_strobe,
 
     sd_lba       => SD_LBA2,
-    sd_rd        => sd_rd(1),
-    sd_wr        => sd_wr(1),
-    sd_ack       => sd_ack(1)
+    sd_rd        => sd_rd(3),
+    sd_wr        => sd_wr(3),
+    sd_ack       => sd_ack(3)
   );
 
   LED <= not (D1_ACTIVE or D2_ACTIVE);
@@ -651,6 +740,26 @@ begin
       unsigned(O_AUDIO_L) => psg_audio_l,
       unsigned(O_AUDIO_R) => psg_audio_r
       );
+
+  ide_cffa : entity work.ide_cffa port map (
+    CLK_14M        => CLK_14M,
+    CLK_2M         => CLK_2M,
+    PHASE_ZERO     => PHASE_ZERO,
+    IO_SELECT      => IO_SELECT(7),
+    IO_STROBE      => IO_STROBE,
+    DEVICE_SELECT  => DEVICE_SELECT(7),
+    RESET          => reset,
+    A              => ADDR,
+    RNW            => not cpu_we,
+    D_IN           => D,
+    D_OUT          => IDE_DO,
+    OE             => IDE_OE,
+
+    IDE_CS         => ide_cs,
+    IDE_ADDR       => ide_addr,
+    IDE_DOUT       => ide_dout,
+    IDE_DIN        => ide_din
+  );
 
   dac_l : mist.dac
     generic map(10)
@@ -694,6 +803,7 @@ begin
   user_io_inst : user_io
     generic map (
       STRLEN => CONF_STR'length,
+      SD_IMAGES => 4,
       FEATURES => USER_IO_FEAT
     )
     port map (
@@ -742,7 +852,76 @@ begin
       ps2_kbd_data => ps2Data
     );
 
- vga_video : mist_video
+  data_io_inst: data_io
+    port map (
+      clk_sys => CLK_14M,
+      SPI_SCK => SPI_SCK,
+      SPI_SS2 => SPI_SS2,
+      SPI_SS4 => SPI_SS4,
+      SPI_DI => SPI_DI,
+      SPI_DO => SPI_DO,
+
+      clkref_n => '0',
+
+      --ioctl_download => ioctl_download,
+      --ioctl_index => ioctl_index,
+      --ioctl_wr => ioctl_wr,
+      --ioctl_addr => ioctl_addr,
+      --ioctl_dout => ioctl_data
+      hdd_clk        => CLK_28M,
+      hdd_cmd_req    => hdd_cmd_req,
+      hdd_cdda_req   => '0',
+      hdd_dat_req    => hdd_dat_req,
+      hdd_cdda_wr    => open,
+      hdd_status_wr  => hdd_status_wr,
+      hdd_addr       => hdd_addr,
+      hdd_wr         => hdd_wr,
+
+      hdd_data_out   => hdd_data_out,
+      hdd_data_in    => hdd_data_in,
+      hdd_data_rd    => hdd_data_rd,
+      hdd_data_wr    => hdd_data_wr,
+
+      -- IDE config
+      hdd0_ena       => hdd0_ena,
+      hdd1_ena       => hdd1_ena
+    );
+
+  ide_inst: ide
+  port map
+  (
+    clk           => CLK_28M,
+    clk_en        => '1',
+    reset         => reset,
+    address_in    => ide_addr,
+    sel_secondary => '0',
+    data_in       => ide_din,
+    data_out      => ide_dout,
+    data_oe       => open,
+    rd            => not cpu_we,
+    hwr           => cpu_we,
+    lwr           => cpu_we,
+    sel_ide       => ide_cs,
+    intreq        => open,
+    intreq_ack    => "00",
+    nrdy          => open,
+    hdd0_ena      => hdd0_ena,
+    hdd1_ena      => hdd1_ena,
+    fifo_rd       => open,
+    fifo_wr       => open,
+
+    hdd_cmd_req   => hdd_cmd_req,
+    hdd_dat_req   => hdd_dat_req,
+    hdd_status_wr => hdd_status_wr,
+    hdd_addr      => hdd_addr,
+    hdd_wr        => hdd_wr,
+    hdd_data_out  => hdd_data_out,
+    hdd_data_in   => hdd_data_in,
+    hdd_data_rd   => hdd_data_rd,
+    hdd_data_wr   => hdd_data_wr
+  );
+
+  vga_video : mist_video
     generic map(
       COLOR_DEPTH => 8,
       SD_HCNT_WIDTH => 10,

@@ -1,0 +1,88 @@
+-------------------------------------------------------------------------------
+--
+-- CFFA compatible IDE interface
+--
+-- (c)2025 Gyorgy Szombathelyi
+--
+-------------------------------------------------------------------------------
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+entity ide_cffa is
+  port (
+    CLK_14M        : in  std_logic;
+    CLK_2M         : in  std_logic;
+    PHASE_ZERO     : in  std_logic;
+    IO_SELECT      : in  std_logic;             -- e.g., C700 - C7FF ROM
+    IO_STROBE      : in  std_logic;             -- e.g., C800 - CFFF I/O locations
+    DEVICE_SELECT  : in  std_logic;
+    RESET          : in  std_logic;
+    A              : in  unsigned(15 downto 0);
+    D_IN           : in  unsigned( 7 downto 0); -- From 6502
+    D_OUT          : out unsigned( 7 downto 0); -- To 6502
+    RNW            : in  std_logic;
+    OE             : out std_logic;
+    -- IDE interface
+    IDE_CS         : out std_logic;
+    IDE_ADDR       : out std_logic_vector( 2 downto 0);
+    IDE_DOUT       : in  std_logic_vector(15 downto 0);
+    IDE_DIN        : out std_logic_vector(15 downto 0)
+    );
+end ide_cffa;
+
+architecture rtl of ide_cffa is
+
+  signal rom_dout : unsigned(7 downto 0);
+  signal rom_active : std_logic;
+
+  signal internal_ide_dout : std_logic_vector(7 downto 0);
+  signal data_in_latch : std_logic_vector(7 downto 0);
+  signal data_out_latch : std_logic_vector(7 downto 0);
+
+begin
+
+  process(CLK_14M) begin
+    if rising_edge(CLK_14M) then
+      if reset = '1' then
+        rom_active <= '0';
+      else
+        if IO_STROBE = '1' and A(11 downto 0) = x"FFF" then
+          rom_active <= '0';
+        elsif IO_SELECT = '1' then
+          rom_active <= '1';
+        end if;
+      end if;
+    end if;
+  end process;
+
+  process(CLK_14M) begin
+    if rising_edge(CLK_14M) then
+      -- W_HOST  = !/DSEL & !(A3 # A2 # A1 # A0) & !/RW;
+      if DEVICE_SELECT = '1' and A(3 downto 0) = "0000" and RNW = '0' then
+        data_out_latch <= std_logic_vector(D_IN);
+      end if;
+      -- R_ATA   = !/DSEL & (A3 # (A2 & A1)) & /RW;
+      if DEVICE_SELECT = '1' and (A(3) = '1' or (A(2 downto 1) = "11")) and RNW = '1' then
+        data_in_latch <= IDE_DOUT(7 downto 0);
+      end if;
+    end if;
+  end process;
+
+  IDE_ADDR <= std_logic_vector(A(2 downto 0)) when A(3) = '1' else "111";
+  IDE_CS <= '1' when DEVICE_SELECT = '1' and (A(3) = '1' or A(2 downto 1) = "11") else '0';
+  IDE_DIN <= std_logic_vector(D_IN) & data_out_latch;
+
+  internal_ide_dout <= data_in_latch when A(3 downto 0) = "0000" else IDE_DOUT(15 downto 8);
+
+  D_OUT <= unsigned(internal_ide_dout) when DEVICE_SELECT = '1' else rom_dout;
+  OE <= (IO_STROBE and rom_active) or IO_SELECT or DEVICE_SELECT;
+
+  -- ROM
+  rom : entity work.ide_cffa_rom port map (
+    addr => A(11 downto 0),
+    clk  => CLK_14M,
+    data => rom_dout);
+
+end rtl;
