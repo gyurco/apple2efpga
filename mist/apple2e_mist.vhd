@@ -147,9 +147,12 @@ architecture datapath of apple2e_mist is
    "O4,Machine Type,NTSC,PAL;"&
    "OBC,Scanlines,Off,25%,50%,75%;"&
    "O5,Joysticks,Normal,Swapped;"&
-   "O6,Mockingboard S4,off,on;"&
    SEP&
-   "T7,Cold reset;"&
+   "O6,Mockingboard S4,Off,On;"&
+   "OA,CFFA 2.0     S7,Off,On;"&
+   SEP&
+   "T7,Reset;"&
+   "T0,Cold reset;"&
    "V,v"&BUILD_DATE;
 
   component mist_sd_card
@@ -458,9 +461,9 @@ begin
   power_on : process(CLK_14M)
   begin
     if rising_edge(CLK_14M) then
-      reset <= status(0) or power_on_reset;
+      reset <= buttons(1) or status(7) or power_on_reset;
 
-      if buttons(1)='1' or status(7) = '1' then
+      if status(0) = '1' then
         power_on_reset <= '1';
         flash_clk <= (others=>'0');
       else
@@ -560,11 +563,11 @@ begin
     );
   
   -- Simulate power up on cold reset to go to the disk boot routine
-  ram_we   <= we_ram when status(7) = '0' else '1';
-  ram_addr <= "000000000" & std_logic_vector(a_ram) when status(7) = '0' else std_logic_vector(to_unsigned(1012,ram_addr'length)); -- $3F4
-  ram_di   <= std_logic_vector(D) when status(7) = '0' else "00000000";
+  ram_we   <= we_ram when power_on_reset = '0' else '1';
+  ram_addr <= "000000000" & std_logic_vector(a_ram) when power_on_reset = '0' else std_logic_vector(to_unsigned(1012,ram_addr'length)); -- $3F4
+  ram_di   <= std_logic_vector(D) when power_on_reset = '0' else "00000000";
 
-  PD <= PSG_DO when IO_SELECT(4) = '1' else IDE_DO when IDE_OE = '1' else DISK_DO;
+  PD <= PSG_DO when IO_SELECT(4) = '1' else IDE_DO when status(10) = '1' and IDE_OE = '1' else DISK_DO;
 
   core : entity work.apple2 port map (
     CLK_14M        => CLK_14M,
