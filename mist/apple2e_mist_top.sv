@@ -86,6 +86,12 @@ module apple2e_mist_top(
 `ifdef USE_AUDIO_IN
 	input         AUDIO_IN,
 `endif
+`ifdef SIDI128_EXPANSION
+	input         UART_CTS,
+	output        UART_RTS,
+	inout         EXP7,
+	inout         MOTOR_CTRL,
+`endif
 	input         UART_RX,
 	output        UART_TX
 
@@ -147,6 +153,11 @@ assign SDRAM2_nRAS = 1;
 assign SDRAM2_nWE = 1;
 `endif
 
+`ifdef SIDI128_EXPANSION
+assign EXP7 = 1'bZ;
+assign MOTOR_CTRL = 1'bZ;
+`endif
+
 `include "build_id.v"
 
 `ifdef I2S_AUDIO
@@ -161,7 +172,6 @@ assign HDMI_SDATA = I2S_DATA;
 apple2e_mist
 #(
 	.VGA_BITS(VGA_BITS),
-	.USE_AUDIO_IN(USE_AUDIO_IN ? "true" : "false"),
 	.BIG_OSD(BIG_OSD ? "true" : "false"),
 	.HDMI(HDMI ? "true" : "false"),
 	.BUILD_DATE(`BUILD_DATE)
@@ -193,6 +203,8 @@ apple2e_mist (
 
 `ifdef USE_AUDIO_IN
 	.AUDIO_IN(AUDIO_IN),
+`else
+	.AUDIO_IN(UART_RX),
 `endif
 `ifdef I2S_AUDIO
 	.I2S_BCK(I2S_BCK),
@@ -221,7 +233,10 @@ apple2e_mist (
 	.SDRAM_BA(SDRAM_BA),
 	.SDRAM_CLK(SDRAM_CLK),
 	.SDRAM_CKE(SDRAM_CKE),
-
+`ifdef SIDI128_EXPANSION
+	.UART_RTS(UART_RTS),
+	.UART_CTS(UART_CTS),
+`endif
 	.UART_RX(UART_RX),
 	.UART_TX(UART_TX)
 );

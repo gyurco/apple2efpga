@@ -33,7 +33,6 @@ entity apple2e_mist is
     VGA_BITS   : integer := 6;
     BIG_OSD : boolean := false;
     HDMI : boolean := false;
-    USE_AUDIO_IN : boolean := false;
     BUILD_DATE : string :=""
   );
   port (
@@ -96,6 +95,8 @@ entity apple2e_mist is
 
     UART_RX : in std_logic;
     UART_TX : out std_logic;
+    UART_CTS: in std_logic;
+    UART_RTS: out std_logic;
 
     -- LEDG
     LED : out std_logic
@@ -451,8 +452,6 @@ architecture datapath of apple2e_mist is
   signal open_apple : std_logic;
   signal closed_apple : std_logic;
 
-  signal ear_in : std_logic;
-
 begin
 
   st_wp <= status(9 downto 8);
@@ -492,8 +491,7 @@ begin
   -- GAMEPORT input bits:
   --  7    6    5    4    3   2   1    0
   -- pdl3 pdl2 pdl1 pdl0 pb3 pb2 pb1 casette
-	ear_in <= AUDIO_IN when USE_AUDIO_IN else UART_RX;
-  GAMEPORT <=  "00" & joyy & joyx & "0" & (joy(5) or closed_apple) & (joy(4) or open_apple) & ear_in;
+  GAMEPORT <=  "00" & joyy & joyx & "0" & (joy(5) or closed_apple) & (joy(4) or open_apple) & AUDIO_IN;
   
   joy_an <= joy_an0(15 downto 0) when status(5)='0' else joy_an1(15 downto 0);
   joy <= joy0(5 downto 0) when status(5)='0' else joy1(5 downto 0);
