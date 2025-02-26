@@ -149,8 +149,14 @@ architecture datapath of apple2e_mist is
    "OBC,Scanlines,Off,25%,50%,75%;"&
    "O5,Joysticks,Normal,Swapped;"&
    SEP&
+   "P1,Super Serial S2;"&
    "O6,Mockingboard S4,Off,On;"&
    "OA,CFFA 2.0     S7,Off,On;"&
+   "P1OF,SSC,Disable,Enable;"&
+   "P1OGJ,Baud Rate,115200,50,75,110,135,150,300,600,1200,1800,2400,3600,4800,7200,9600,19200;"&
+   "P1OK,Data Bits,8,7;"&
+   "P1OLM,Parity,Off,Odd,Even;"&
+   "P1ON,Generate LF after CR,Off,On;"&
    SEP&
    "T7,Reset;"&
    "T0,Cold reset;"&
@@ -312,8 +318,8 @@ architecture datapath of apple2e_mist is
   signal IO_STROBE : std_logic;
   signal ADDR : unsigned(15 downto 0);
   signal D, PD: unsigned(7 downto 0);
-  signal DISK_DO, PSG_DO, IDE_DO : unsigned(7 downto 0);
-  signal IDE_OE : std_logic;
+  signal DISK_DO, PSG_DO, IDE_DO, SSC_DO : unsigned(7 downto 0);
+  signal IDE_OE, SSC_OE : std_logic;
   signal DO : std_logic_vector(15 downto 0);
   signal aux : std_logic;
   signal cpu_we : std_logic;
@@ -444,6 +450,9 @@ architecture datapath of apple2e_mist is
   signal ide_dout      : std_logic_vector(15 downto 0);
   signal ide_din       : std_logic_vector(15 downto 0);
 
+  signal ssc_sw1       : std_logic_vector(6 downto 1) := "111111";
+  signal ssc_sw2       : std_logic_vector(5 downto 1) := "11111";
+
   signal pll_locked : std_logic;
   signal sdram_dqm: std_logic_vector(1 downto 0);
   signal joyx       : std_logic;
@@ -565,7 +574,10 @@ begin
   ram_addr <= "000000000" & std_logic_vector(a_ram) when power_on_reset = '0' else std_logic_vector(to_unsigned(1012,ram_addr'length)); -- $3F4
   ram_di   <= std_logic_vector(D) when power_on_reset = '0' else "00000000";
 
-  PD <= PSG_DO when IO_SELECT(4) = '1' else IDE_DO when status(10) = '1' and IDE_OE = '1' else DISK_DO;
+  PD <= PSG_DO when IO_SELECT(4) = '1' else 
+        SSC_DO when status(15) = '1' and SSC_OE = '1' else
+        IDE_DO when status(10) = '1' and IDE_OE = '1' else
+        DISK_DO;
 
   core : entity work.apple2 port map (
     CLK_14M        => CLK_14M,
@@ -760,6 +772,40 @@ begin
     IDE_ADDR       => ide_addr,
     IDE_DOUT       => ide_dout,
     IDE_DIN        => ide_din
+  );
+
+  ssc_sw1 <= "00"&status(16)&status(17)&status(18)&status(19);
+  ssc_sw2(5) <= not status(23); -- LF after CR
+  ssc_sw2(4 downto 3) <= "00" when status(22 downto 21) = "00" else -- no parity
+                         "10" when status(22 downto 21) = "01" else -- odd parity
+                         "11"; -- even parity
+  ssc_sw2(2) <= status(20); -- data bits
+  ssc_sw2(1) <= '0'; -- 1 stop bit
+
+  ssc : entity work.ssc port map (
+    CLK_14M        => CLK_14M,
+    CLK_2M         => CLK_2M,
+    PHASE_ZERO     => PHASE_ZERO,
+    IO_SELECT      => IO_SELECT(2),
+    IO_STROBE      => IO_STROBE,
+    DEVICE_SELECT  => DEVICE_SELECT(2),
+    RESET          => reset,
+    A              => ADDR,
+    RNW            => not cpu_we,
+    D_IN           => D,
+    D_OUT          => SSC_DO,
+    OE             => SSC_OE,
+
+    SW1            => ssc_sw1,
+    SW2            => ssc_sw2,
+
+    UART_RX        => UART_RX,
+    UART_TX        => UART_TX,
+    UART_CTS       => UART_CTS,
+    UART_RTS       => UART_RTS,
+    UART_DCD       => '0',
+    UART_DSR       => '0',
+    UART_DTR       => open
   );
 
   dac_l : mist.dac

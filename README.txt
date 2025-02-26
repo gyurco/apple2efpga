@@ -13,6 +13,7 @@ Features:
 - 64K base + 64K auxilary RAM with 80 column and double hi-res support
 - Mockingboard model A (two AY-3-8913 chips for six audio channels) in slot 4
 - CFFA 2.0 compatible IDE interface in slot 7
+- Super Serial Card in slot 2
 
 On the "Apple //e" boot screen open the OSD with F12 and choose a nibblelized disk. It will boot
 the disk automatically. Use dsk2nib to convert AppleII disk images to .nib images. 

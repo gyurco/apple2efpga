@@ -236,6 +236,9 @@ apple2e_mist (
 `ifdef SIDI128_EXPANSION
 	.UART_RTS(UART_RTS),
 	.UART_CTS(UART_CTS),
+`else
+	.UART_RTS(),
+	.UART_CTS(1'b0),
 `endif
 	.UART_RX(UART_RX),
 	.UART_TX(UART_TX)
