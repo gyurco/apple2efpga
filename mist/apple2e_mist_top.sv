@@ -169,6 +169,13 @@ assign HDMI_SDATA = I2S_DATA;
 `endif
 `endif
 
+wire sdram_clk;
+`ifdef INVERT_SDRAM_CLOCK
+assign SDRAM_CLK = ~sdram_clk;
+`else
+assign SDRAM_CLK = sdram_clk;
+`endif
+
 apple2e_mist
 #(
 	.VGA_BITS(VGA_BITS),
@@ -177,7 +184,11 @@ apple2e_mist
 	.BUILD_DATE(`BUILD_DATE)
 )
 apple2e_mist (
-	.CLOCK_27(CLOCK_27),
+`ifdef CLOCK_IN_50
+	.CLOCK_IN(CLOCK_50),
+`else
+	.CLOCK_IN(CLOCK_27),
+`endif
 
 	.LED(LED),
 	.VGA_R(VGA_R),
@@ -231,7 +242,7 @@ apple2e_mist (
 	.SDRAM_nRAS(SDRAM_nRAS),
 	.SDRAM_nCS(SDRAM_nCS),
 	.SDRAM_BA(SDRAM_BA),
-	.SDRAM_CLK(SDRAM_CLK),
+	.SDRAM_CLK(sdram_clk),
 	.SDRAM_CKE(SDRAM_CKE),
 `ifdef SIDI128_EXPANSION
 	.UART_RTS(UART_RTS),

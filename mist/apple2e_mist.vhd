@@ -38,7 +38,7 @@ entity apple2e_mist is
   port (
     -- Clocks
 
-    CLOCK_27    : in std_logic; -- 27 MHz
+    CLOCK_IN    : in std_logic;
 
 
     -- SDRAM
@@ -489,7 +489,7 @@ begin
   pll : entity work.mist_clk 
   port map (
     areset => '0',
-    inclk0 => CLOCK_27,
+    inclk0 => CLOCK_IN,
     c0     => CLK_28M,
     c1     => CLK_14M,
     locked => pll_locked
