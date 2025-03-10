@@ -12,8 +12,7 @@ use ieee.numeric_std.all;
 
 entity ide_cffa is
   port (
-    CLK_14M        : in  std_logic;
-    CLK_2M         : in  std_logic;
+    CLK_28M        : in  std_logic;
     PHASE_ZERO     : in  std_logic;
     IO_SELECT      : in  std_logic;             -- e.g., C700 - C7FF ROM
     IO_STROBE      : in  std_logic;             -- e.g., C800 - CFFF I/O locations
@@ -43,9 +42,9 @@ architecture rtl of ide_cffa is
 
 begin
 
-  process(CLK_14M) begin
-    if rising_edge(CLK_14M) then
-      if reset = '1' then
+  process(CLK_28M) begin
+    if rising_edge(CLK_28M) then
+      if RESET = '1' then
         rom_active <= '0';
       else
         if IO_STROBE = '1' and A(11 downto 0) = x"FFF" then
@@ -57,8 +56,8 @@ begin
     end if;
   end process;
 
-  process(CLK_14M) begin
-    if rising_edge(CLK_14M) then
+  process(CLK_28M) begin
+    if rising_edge(CLK_28M) then
       -- W_HOST  = !/DSEL & !(A3 # A2 # A1 # A0) & !/RW;
       if DEVICE_SELECT = '1' and A(3 downto 0) = "0000" and RNW = '0' then
         data_out_latch <= std_logic_vector(D_IN);
@@ -82,7 +81,7 @@ begin
   -- ROM
   rom : entity work.ide_cffa_rom port map (
     addr => A(11 downto 0),
-    clk  => CLK_14M,
+    clk  => CLK_28M,
     data => rom_dout);
 
 end rtl;

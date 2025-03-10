@@ -755,8 +755,7 @@ begin
       );
 
   ide_cffa : entity work.ide_cffa port map (
-    CLK_14M        => CLK_14M,
-    CLK_2M         => CLK_2M,
+    CLK_28M        => CLK_28M,
     PHASE_ZERO     => PHASE_ZERO,
     IO_SELECT      => IO_SELECT(7),
     IO_STROBE      => IO_STROBE,
