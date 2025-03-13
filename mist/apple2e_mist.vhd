@@ -151,6 +151,7 @@ architecture datapath of apple2e_mist is
    SEP&
    "P1,Super Serial S2;"&
    "O6,Mockingboard S4,Off,On;"&
+   "OO,Mouse        S5,Off,On;"&
    "OA,CFFA 2.0     S7,Off,On;"&
    "P1OF,SSC,Disable,Enable;"&
    "P1OGJ,Baud Rate,115200,50,75,110,135,150,300,600,1200,1800,2400,3600,4800,7200,9600,19200;"&
@@ -318,12 +319,13 @@ architecture datapath of apple2e_mist is
   signal IO_STROBE : std_logic;
   signal ADDR : unsigned(15 downto 0);
   signal D, PD: unsigned(7 downto 0);
-  signal DISK_DO, PSG_DO, IDE_DO, SSC_DO : unsigned(7 downto 0);
-  signal IDE_OE, SSC_OE : std_logic;
+  signal DISK_DO, PSG_DO, IDE_DO, SSC_DO, MOUSE_DO : unsigned(7 downto 0);
+  signal IDE_OE, SSC_OE, MOUSE_OE : std_logic;
   signal DO : std_logic_vector(15 downto 0);
   signal aux : std_logic;
   signal cpu_we : std_logic;
   signal psg_irq_n, psg_nmi_n : std_logic;
+  signal mouse_irq_n : std_logic;
 
   signal we_ram : std_logic;
   signal VIDEO, HBL, VBL : std_logic;
@@ -407,6 +409,10 @@ architecture datapath of apple2e_mist is
   signal status     : std_logic_vector(63 downto 0);
   signal ps2Clk     : std_logic;
   signal ps2Data    : std_logic;
+  signal mouse_strobe : std_logic;
+  signal mouse_x      : signed(8 downto 0);
+  signal mouse_y      : signed(8 downto 0);
+  signal mouse_flags  : std_logic_vector(7 downto 0);
 
   signal st_wp      : std_logic_vector( 1 downto 0);
   
@@ -577,6 +583,7 @@ begin
   PD <= PSG_DO when IO_SELECT(4) = '1' else 
         SSC_DO when status(15) = '1' and SSC_OE = '1' else
         IDE_DO when status(10) = '1' and IDE_OE = '1' else
+        MOUSE_DO when status(24) = '1' and MOUSE_OE = '1' else
         DISK_DO;
 
   core : entity work.apple2 port map (
@@ -596,7 +603,7 @@ begin
     aux            => aux,
     PD             => PD,
     CPU_WE         => cpu_we,
-    IRQ_N          => psg_irq_n,
+    IRQ_N          => psg_irq_n and mouse_irq_n,
     NMI_N          => psg_nmi_n,
     ram_we         => we_ram,
     VIDEO          => VIDEO,
@@ -807,6 +814,27 @@ begin
     UART_DTR       => open
   );
 
+  mouse : entity work.applemouse port map (
+    CLK_14M        => CLK_14M,
+    CLK_2M         => CLK_2M,
+    PHASE_ZERO     => PHASE_ZERO,
+    IO_SELECT      => IO_SELECT(5),
+    IO_STROBE      => IO_STROBE,
+    DEVICE_SELECT  => DEVICE_SELECT(5),
+    RESET          => reset,
+    A              => ADDR,
+    RNW            => not cpu_we,
+    D_IN           => D,
+    D_OUT          => MOUSE_DO,
+    OE             => MOUSE_OE,
+    IRQ_N          => MOUSE_IRQ_N,
+
+    STROBE         => mouse_strobe,
+    X              => mouse_x,
+    Y              => mouse_y,
+    BUTTON         => mouse_flags(0)
+  );
+
   dac_l : mist.dac
     generic map(10)
     port map (
@@ -895,7 +923,11 @@ begin
       img_mounted => disk_change,
       img_size => disk_size,
       ps2_kbd_clk => ps2Clk,
-      ps2_kbd_data => ps2Data
+      ps2_kbd_data => ps2Data,
+      mouse_strobe => mouse_strobe,
+      mouse_x => mouse_x,
+      mouse_y => mouse_y,
+      mouse_flags => mouse_flags
     );
 
   data_io_inst: data_io
