@@ -5,7 +5,14 @@ entity ide_cffa_rom is
 port (
 	clk  : in  std_logic;
 	addr : in  unsigned(11 downto 0);
-	data : out unsigned(7 downto 0)
+	data : out unsigned(7 downto 0);
+	we   : in  std_logic;
+	w_d  : in  unsigned(7 downto 0);
+
+	addr_b : in  unsigned(11 downto 0);
+	data_b : out unsigned(7 downto 0);
+	we_b   : in  std_logic;
+	w_d_b  : in  unsigned(7 downto 0)
 );
 end entity;
 
@@ -273,6 +280,19 @@ process(clk)
 begin
 	if rising_edge(clk) then
 		data <= rom_data(to_integer(unsigned(addr)));
+		if we = '1' then
+			rom_data(to_integer(unsigned(addr))) <= w_d;
+		end if;
+	end if;
+end process;
+
+process(clk)
+begin
+	if rising_edge(clk) then
+		data_b <= rom_data(to_integer(unsigned(addr_b)));
+		if we_b = '1' then
+			rom_data(to_integer(unsigned(addr_b))) <= w_d_b;
+		end if;
 	end if;
 end process;
 end architecture;

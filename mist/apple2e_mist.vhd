@@ -161,6 +161,7 @@ architecture datapath of apple2e_mist is
    "P1OLM,Parity,Off,Odd,Even;"&
    "P1ON,Generate LF after CR,Off,On;"&
    SEP&
+   "R32,Save CFFA settings;"&
    "T7,Reset;"&
    "T0,Cold reset;"&
    "V,v"&BUILD_DATE;
@@ -254,10 +255,12 @@ architecture datapath of apple2e_mist is
     SPI_DO         : inout std_logic;
     clkref_n       : in  std_logic := '0';
     ioctl_download : out std_logic;
+    ioctl_upload   : out std_logic;
     ioctl_index    : out std_logic_vector(7 downto 0);
     ioctl_wr       : out std_logic;
-    ioctl_addr     : out std_logic_vector(24 downto 0);
+    ioctl_addr     : out std_logic_vector(26 downto 0);
     ioctl_dout     : out std_logic_vector(7 downto 0);
+    ioctl_din      : in  std_logic_vector(7 downto 0);
 
     -- IDE
     hdd_clk        : in  std_logic;
@@ -440,6 +443,15 @@ architecture datapath of apple2e_mist is
   signal SD_DATA_IN1: std_logic_vector(7 downto 0);
   signal SD_DATA_IN2: std_logic_vector(7 downto 0);
 
+  -- data io
+  signal ioctl_download : std_logic;
+  signal ioctl_upload   : std_logic;
+  signal ioctl_index    : std_logic_vector(7 downto 0);
+  signal ioctl_wr       : std_logic;
+  signal ioctl_addr     : std_logic_vector(26 downto 0);
+  signal ioctl_dout     : std_logic_vector(7 downto 0);
+  signal ioctl_din      : std_logic_vector(7 downto 0);
+
   -- IDE (CFFA) signals
   signal hdd_cmd_req   : std_logic;
   signal hdd_dat_req   : std_logic;
@@ -457,6 +469,8 @@ architecture datapath of apple2e_mist is
   signal ide_addr      : std_logic_vector(2 downto 0);
   signal ide_dout      : std_logic_vector(15 downto 0);
   signal ide_din       : std_logic_vector(15 downto 0);
+
+  signal cffa_eeprom_we: std_logic;
 
   signal ssc_sw1       : std_logic_vector(6 downto 1) := "111111";
   signal ssc_sw2       : std_logic_vector(5 downto 1) := "11111";
@@ -763,6 +777,8 @@ begin
       unsigned(O_AUDIO_R) => psg_audio_r
       );
 
+  cffa_eeprom_we <= '1' when ioctl_index = x"FF" and ioctl_wr = '1' else '0';
+
   ide_cffa : entity work.ide_cffa port map (
     CLK_28M        => CLK_28M,
     PHASE_ZERO     => PHASE_ZERO,
@@ -779,7 +795,12 @@ begin
     IDE_CS         => ide_cs,
     IDE_ADDR       => ide_addr,
     IDE_DOUT       => ide_dout,
-    IDE_DIN        => ide_din
+    IDE_DIN        => ide_din,
+
+    SAVE_A         => unsigned(ioctl_addr(10 downto 0)),
+    std_logic_vector(SAVE_Q) => ioctl_din,
+    SAVE_WE        => cffa_eeprom_we,
+    SAVE_D         => unsigned(ioctl_dout)
   );
 
   ssc_sw1 <= "00"&status(16)&status(17)&status(18)&status(19);
@@ -943,11 +964,14 @@ begin
 
       clkref_n => '0',
 
-      --ioctl_download => ioctl_download,
-      --ioctl_index => ioctl_index,
-      --ioctl_wr => ioctl_wr,
-      --ioctl_addr => ioctl_addr,
-      --ioctl_dout => ioctl_data
+      ioctl_download => ioctl_download,
+      ioctl_upload   => ioctl_upload,
+      ioctl_index    => ioctl_index,
+      ioctl_wr       => ioctl_wr,
+      ioctl_addr     => ioctl_addr,
+      ioctl_dout     => ioctl_dout,
+      ioctl_din      => ioctl_din,
+
       hdd_clk        => CLK_28M,
       hdd_cmd_req    => hdd_cmd_req,
       hdd_cdda_req   => '0',
