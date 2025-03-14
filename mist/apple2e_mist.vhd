@@ -140,6 +140,8 @@ architecture datapath of apple2e_mist is
    "AppleII;;"&
    "S2U,NIB,Load Disk 0;"&
    "S3U,NIB,Load Disk 1;"&
+   "S0,HD?VHDHDV,Mount IDE0;"&
+   "S1,HD?VHDHDV,Mount IDE1;"&
    SEP&
    "O89,Write Protect,None,Disk 0,Disk 1, Disk 0&1;"&
    "O1,CPU Type,6502,65C02;"&
